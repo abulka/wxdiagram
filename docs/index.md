@@ -37,6 +37,3 @@ pluggable.
 
 See [Getting started](getting-started.md) and the
 [migration guide](migration-from-wx-lib-ogl.md).
-
-`wxdiagram` is pre-release (`0.1.0`); install from source until the first PyPI
-release.

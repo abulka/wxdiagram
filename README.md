@@ -2,6 +2,8 @@
 
 **A zoomable shape-and-connector canvas for wxPython.**
 
+[![PyPI](https://img.shields.io/pypi/v/wxdiagram.svg)](https://pypi.org/project/wxdiagram/)
+
 `wxdiagram` gives a wxPython application a modern diagram canvas without the
 ceremony of `wx.lib.ogl`: shapes, edges, selection, zoom/pan, and JSON
 persistence in a small MIT-licensed package.
@@ -113,9 +115,8 @@ comparison with `wx.lib.ogl`.
 
 ## Status
 
-Beta, pre-release (`0.1.0`). Not yet on PyPI; install from source for now.
-The public API is still settling, so pin a version if you depend on it.
-pynsource is the main downstream consumer.
+Beta (`0.1.0`). The public API is still settling, so pin a version if you
+depend on it. pynsource is the main downstream consumer.
 
 ## License
 
