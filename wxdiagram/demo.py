@@ -346,7 +346,7 @@ class DemoFrame(wx.Frame):
             )
 
     def OnNew(self, event):
-        self.canvas.diagram = wxdiagram.Diagram()
+        self.canvas.SetDiagram(wxdiagram.Diagram())
         self.canvas.deselect()
         self.canvas.update_virtual_size()
         self.canvas.Refresh()

@@ -395,11 +395,15 @@ def diagram_to_dict(diagram) -> Dict[str, Any]:
         collect(shape)
 
     id_map: Dict[int, int] = {}
+    seen_ids = set()
     for shape in flat:
-        if getattr(shape, "GetId", None) is not None and shape.GetId() == 0:
+        shape_id = shape.GetId() if getattr(shape, "GetId", None) is not None else 0
+        if shape_id == 0 or shape_id in seen_ids:
             shape.AssignNewIds()
-        shape._persist_id = shape.GetId()
-        id_map[id(shape)] = shape.GetId()
+            shape_id = shape.GetId()
+        seen_ids.add(shape_id)
+        shape._persist_id = shape_id
+        id_map[id(shape)] = shape_id
 
     return {
         "app": APP_IDENTIFIER,
