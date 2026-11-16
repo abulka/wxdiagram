@@ -27,3 +27,6 @@ coverage.xml
 
 # Sphinx
 docs/_build
+
+# MkDocs
+site/

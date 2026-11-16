@@ -1,0 +1,52 @@
+site_name: wxdiagram
+site_description: A zoomable shape-and-connector canvas for wxPython
+site_url: https://abulka.github.io/wxdiagram/
+repo_url: https://github.com/abulka/wxdiagram
+repo_name: abulka/wxdiagram
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            docstring_style: sphinx
+            members_order: source
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Cookbook: cookbook.md
+  - API reference: api.md
+  - Migration from wx.lib.ogl: migration-from-wx-lib-ogl.md
+  - Design notes: design.md
+  - Roadmap: roadmap.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - toc:
+      permalink: true

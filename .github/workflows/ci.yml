@@ -43,5 +43,8 @@ jobs:
           xvfb-run -a uv run python -m pytest tests/ -q
         continue-on-error: true
 
+      - name: Build docs
+        run: uv run mkdocs build
+
       - name: Build package
         run: uv build

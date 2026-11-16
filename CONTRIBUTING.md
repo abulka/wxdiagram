@@ -20,6 +20,7 @@ uv run python -m wxdiagram.demo
 uv run python -m pytest tests/ -q
 uv run ruff check .
 uv run ruff format --check .
+uv run mkdocs build
 uv build
 ```
 
