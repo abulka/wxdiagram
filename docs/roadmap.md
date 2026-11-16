@@ -9,7 +9,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ Stable ids, canvas attachment, `AddShape` ordering, `Clear` semantics
 - ✅ Spline/arrow/constraint accessors
 - ✅ README, migration guide, docs skeleton
-- ⬜ Publish 0.1.0
+- ✅ Publish 0.1.0 (PyPI, 2026-11-16)
 - ⬜ Migrate pynsource and its CI
 
 ## 0.2 — interaction

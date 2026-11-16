@@ -20,6 +20,8 @@ Supersedes: `ogl2/PLAN-2026.md` (keep that file as history; add a
   ordering, and `Diagram.Clear(dc)` semantics.
 - `uv lock`/`uv sync` updated; 58 tests pass; ruff clean.
 - MkDocs site (getting started, cookbook, API, design notes, migration, roadmap).
+- `v0.1.0` tagged, GitHub release published, and PyPI upload succeeded on
+  2026-11-16: https://pypi.org/project/wxdiagram/
 - `uv build` produces `wxdiagram-0.1.0` wheel and sdist.
 - `ogl2` is back on `2026-dustoff` and clean; its `standalone` branch is preserved as history.
 

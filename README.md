@@ -44,6 +44,8 @@ Requires Python 3.10+ and wxPython 4.2+.
 pip install wxdiagram
 ```
 
+On PyPI: <https://pypi.org/project/wxdiagram/>
+
 or from source with [uv](https://docs.astral.sh/uv/):
 
 ```bash
