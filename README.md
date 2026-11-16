@@ -113,7 +113,8 @@ comparison with `wx.lib.ogl`.
 
 ## Status
 
-Beta. The public API is still settling; pin a version if you depend on it.
+Beta, pre-release (`0.1.0`). Not yet on PyPI; install from source for now.
+The public API is still settling, so pin a version if you depend on it.
 pynsource is the main downstream consumer.
 
 ## License
