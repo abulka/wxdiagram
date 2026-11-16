@@ -2,7 +2,7 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-11-16
 
 - Renamed from `ogl2` to `wxdiagram`.
 - New clean repo; removed pynsource build assets and app/demo classes.

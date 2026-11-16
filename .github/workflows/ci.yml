@@ -10,7 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        # wxPython has no Linux wheels on PyPI for the 4.3.x series; Linux
+        # builds currently try to compile wxWidgets from source. Keep Linux
+        # out of the default matrix until there is a wheel strategy.
+        os: [macos-latest, windows-latest]
         python: ["3.13"]
     runs-on: ${{ matrix.os }}
     steps:
@@ -31,17 +34,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Test
-        if: runner.os != 'Linux'
         run: uv run python -m pytest tests/ -q
-
-      # Linux wxPython wheels vary by distro, and wx needs a virtual display
-      - name: Test (Linux, xvfb)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
-          xvfb-run -a uv run python -m pytest tests/ -q
-        continue-on-error: true
 
       - name: Build docs
         run: uv run mkdocs build

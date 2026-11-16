@@ -11,7 +11,7 @@ It began life as `ogl2`, an internal canvas for
 repository is the standalone library. See `NOTICE.md` for the `wx.lib.ogl` and
 OGLlike attribution.
 
-![wxdiagram demo](docs/demo.png)
+![wxdiagram demo](https://raw.githubusercontent.com/abulka/wxdiagram/main/docs/demo.png)
 
 ## Features
 
