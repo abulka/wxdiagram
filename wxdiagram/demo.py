@@ -1,0 +1,402 @@
+# ---------------------------------------------------------------------------------------------
+# wxdiagram demo - a showcase of the library's capabilities
+#
+# Run from the repo root:
+#
+#     uv run python -m wxdiagram.demo
+#
+# What is shown and what you can do:
+#
+#   * A preloaded sample diagram: UML class boxes with connections, a composite
+#     with four children, a bitmap, a diamond, an ellipse, an arrowed line and a
+#     clean polyline, each in its own labelled section.
+#   * Add menu with every shape type.
+#   * View menu with zoom in / zoom out / zoom to fit / reset (Ctrl + / Ctrl - / Ctrl 0),
+#     or hold Ctrl and scroll the mouse wheel.
+#   * Drag on empty canvas to pan.
+#   * Ctrl + click a Block to edit its label.
+#   * File menu: save and load the diagram as JSON.
+#   * Delete key removes the selection.  Ctrl+C / Ctrl+V copy and paste it.
+# ---------------------------------------------------------------------------------------------
+
+import wx
+
+import wxdiagram
+from wxdiagram.composite import CompositeShape
+from wxdiagram.persistence import load, save
+
+
+def _measure_dc():
+    """A scratch DC used for measuring text extents without a visible window."""
+    bitmap = wx.Bitmap(1, 1)
+    dc = wx.MemoryDC(bitmap)
+    return dc
+
+
+def make_caption(x, y, text):
+    """A non-interactive section heading."""
+    font = wx.Font(10, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+    return wxdiagram.TextShape(x, y, text, colour=wx.Colour(90, 90, 90), font=font)
+
+
+def make_class_box(name, attributes, methods, left, top, width=230):
+    """Return a DividedShape with a header region and a body region, like a UML class box.
+
+    Regions are configured following the wx.lib.ogl pattern: raw SetText,
+    proportions, format modes, then FormatText() with a measuring DC so the
+    library can lay text out by itself.
+    """
+    padding = 30
+    body_lines = len(attributes) + len(methods)
+    height = padding + 30 + body_lines * 22
+
+    box = wxdiagram.DividedShape(width, height)
+
+    header = wxdiagram.ShapeRegion()
+    header.SetText(name)
+    header.SetProportions(0.0, 0.22)
+    header.SetFormatMode(wxdiagram.FORMAT_CENTRE_HORIZ | wxdiagram.FORMAT_CENTRE_VERT)
+    header.SetFont(wx.Font(13, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+    box.AddRegion(header)
+
+    body = wxdiagram.ShapeRegion()
+    body.SetText("\n".join(attributes + ["────────────"] + methods))
+    body.SetProportions(0.0, 0.78)
+    body.SetFormatMode(wxdiagram.FORMAT_NONE)
+    body.SetFont(wx.Font(10, wx.FONTFAMILY_MODERN, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+    box.AddRegion(body)
+
+    box.SetRegionSizes()
+
+    dc = _measure_dc()
+    try:
+        for i, region in enumerate(box.GetRegions()):
+            box.FormatText(dc, region.GetText(), i)
+    finally:
+        dc.SelectObject(wx.NullBitmap)
+
+    box.move_to(left, top)
+    return box
+
+
+def make_diamond(left, top):
+    w, h = 140, 90
+    diamond = wxdiagram.PolygonShape()
+    diamond.Create([(0, -h / 2), (w / 2, 0), (0, h / 2), (-w / 2, 0)])
+    diamond.move_to(left, top)
+    return diamond
+
+
+def make_polyline(left, top):
+    # A deliberately simple three-point polyline: clean, not a scribble.
+    points = [(0, 40), (120, 0), (240, 40)]
+    line = wxdiagram.LinesShape(points)
+    line.move_to(left, top)
+    return line
+
+
+def make_bitmap_shape(left, top):
+    size = wx.Size(160, 110)
+    image = wx.Image(size)
+    for row in range(size.height):
+        for col in range(size.width):
+            r = int(70 + 150 * row / size.height)
+            g = int(120 + 70 * (1 - col / size.width))
+            b = 200 - int(70 * row / size.height)
+            image.SetRGB(col, row, r, g, b)
+    shape = wxdiagram.BitmapShape()
+    shape.SetBitmap(wx.Bitmap(image))
+    shape.move_to(left, top)
+    return shape
+
+
+def make_composite(left, top):
+    """One composite holding four children in a neatly aligned 2x2 grid."""
+    box_w, box_h, gap = 130, 60, 20
+    comp = CompositeShape()
+
+    for i, label in enumerate(("Item A", "Item B", "Item C", "Item D")):
+        column, row = i % 2, i // 2
+        child_left = 10 + column * (box_w + gap)
+        child_top = 10 + row * (box_h + gap)
+        child = wxdiagram.Block()
+        child.x = [child_left, child_left + box_w]
+        child.y = [child_top, child_top + box_h]
+        child.label = label
+        child.SetFont(wx.Font(11, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        comp.add_child(child)
+
+    comp.CalculateSize()
+    # a little breathing room between the children and the composite frame
+    comp.x = [comp.x[0] - 10, comp.x[1] + 10]
+    comp.y = [comp.y[0] - 10, comp.y[1] + 10]
+    comp.move_to(left, top)
+    return comp
+
+
+def _populate(canvas):
+    shapes = []
+    captions = []
+
+    # -- UML classes and connections -------------------------------------------------
+    captions.append(make_caption(30, 20, "UML CLASSES & CONNECTIONS"))
+
+    client = wxdiagram.Block()
+    client.label = "Client"
+    client.x = [30, 170]
+    client.y = [70, 140]
+
+    controller = make_class_box(
+        "UserController",
+        ["+ user_service: UserService"],
+        ["+ get(name): User", "+ post(req): Response"],
+        300,
+        40,
+    )
+
+    service = make_class_box(
+        "UserService",
+        ["# repository: Repository", "# cache: Cache", "# started: bool"],
+        ["+ find_user(id): User", "+ save_user(u)", "+ delete_user(id)"],
+        300,
+        280,
+    )
+
+    repository = wxdiagram.Block()
+    repository.label = "Repository"
+    repository.x = [30, 190]
+    repository.y = [300, 370]
+
+    shapes.extend([client, controller, service, repository])
+
+    # -- composite --------------------------------------------------------------------
+    captions.append(make_caption(620, 20, "COMPOSITE (2x2 GRID)"))
+    composite = make_composite(620, 50)
+    shapes.append(composite)
+
+    # -- basic shapes -----------------------------------------------------------------
+    captions.append(make_caption(620, 260, "BASIC SHAPES"))
+    rectangle = wxdiagram.RectangleShape(620, 300, 740, 370)
+    ellipse = wxdiagram.ConnectableEllipseShape()
+    ellipse.x = [760, 880]
+    ellipse.y = [300, 370]
+    diamond = make_diamond(960, 300)
+    shapes.extend([rectangle, ellipse, diamond])
+
+    # -- media and code ---------------------------------------------------------------
+    captions.append(make_caption(620, 410, "MEDIA & CODE"))
+    bitmap = make_bitmap_shape(620, 450)
+    file_block = wxdiagram.Block()
+    file_block.label = "utils.py"
+    file_block.x = [620, 760]
+    file_block.y = [580, 650]
+    shapes.extend([bitmap, file_block])
+
+    # -- lines and arrows -------------------------------------------------------------
+    captions.append(make_caption(850, 410, "LINES & ARROWS"))
+    polyline = make_polyline(850, 470)
+    arrowed = wxdiagram.LineShape()
+    arrowed.MakeLineControlPoints(2)
+    arrowed.SetEnds(850, 560, 1080, 630)
+    arrowed._pen = wx.Pen(wx.BLACK, 2, wx.PENSTYLE_LONG_DASH)
+    arrowed.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
+    shapes.extend([polyline, arrowed])
+
+    # -- connections: attached lines, routed via the box perimeters ---------------
+    canvas.join_shapes(client, controller)
+    canvas.join_shapes(repository, service)
+    # vertical relationship: controller bottom -> service top
+    canvas.join_shapes(controller, service)
+
+    for caption in captions:
+        canvas.InsertShape(caption, 999)
+    for shape in shapes:
+        canvas.InsertShape(shape, 999)
+
+
+class DemoFrame(wx.Frame):
+    def __init__(self):
+        super().__init__(
+            None,
+            title="wxdiagram demo - a faster, zoomable diagramming library for wxPython",
+            size=(1200, 760),
+        )
+        self.Centre()
+
+        self.canvas = wxdiagram.ShapeCanvas(self)
+        self.canvas.SetBackgroundColour(wx.WHITE)
+        self.canvas.SetDiagram(wxdiagram.Diagram())
+
+        self._create_menus()
+        self.CreateStatusBar()
+        self.SetStatusText(
+            "Drag to pan | Ctrl+wheel or pinch to zoom | Ctrl+0 reset | Ctrl+A select all | Del delete"
+        )
+
+        _populate(self.canvas)
+        self.canvas.ZoomToFit()
+
+    def _menu(self, title):
+        menu = wx.Menu()
+        if not hasattr(self, "_menu_bar"):
+            self._menu_bar = wx.MenuBar()
+            self.SetMenuBar(self._menu_bar)
+        self._menu_bar.Append(menu, title)
+        return menu
+
+    def _add_item(self, menu, label, handler, help_text=""):
+        item = wx.MenuItem(menu, wx.ID_ANY, label, help_text)
+        menu.Append(item)
+        self.Bind(wx.EVT_MENU, handler, id=item.GetId())
+
+    def _create_menus(self):
+        file_menu = self._menu("&File")
+        self._add_item(file_menu, "&New\tCtrl+N", self.OnNew, "Clear the diagram")
+        self._add_item(file_menu, "&Open...\tCtrl+O", self.OnOpen, "Load a JSON diagram")
+        self._add_item(file_menu, "&Save\tCtrl+S", self.OnSave, "Save as JSON")
+        self._add_item(file_menu, "Save &As...\tCtrl+Shift+S", self.OnSave, "Save as JSON")
+        self._add_item(file_menu, "E&xit\tAlt+F4", self.OnExit, "Quit")
+
+        add_menu = self._menu("&Add")
+        self._add_item(
+            add_menu,
+            "&Rectangle\tCtrl+R",
+            lambda e: self._add_shape(wxdiagram.RectangleShape(0, 0, 120, 80)),
+            "RectangleShape",
+        )
+        self._add_item(
+            add_menu,
+            "&Ellipse\tCtrl+E",
+            lambda e: self._add_shape(wxdiagram.ConnectableEllipseShape()),
+            "EllipseShape",
+        )
+        self._add_item(
+            add_menu,
+            "&Block\tCtrl+B",
+            lambda e: self._add_shape(wxdiagram.Block()),
+            "Labelled block",
+        )
+        self._add_item(
+            add_menu,
+            "Di&vided (UML class)\tCtrl+D",
+            lambda e: self._add_shape(
+                make_class_box("Class", ["+ attribute"], ["+ method()"], 0, 0)
+            ),
+            "DividedShape",
+        )
+        self._add_item(
+            add_menu,
+            "&Polygon\tCtrl+P",
+            lambda e: self._add_shape(make_diamond(300, 300)),
+            "PolygonShape",
+        )
+        self._add_item(
+            add_menu,
+            "&Composite\tCtrl+M",
+            lambda e: self._add_shape(make_composite(300, 300)),
+            "CompositeShape",
+        )
+        self._add_item(
+            add_menu,
+            "&Connect two selected\tCtrl+J",
+            self.OnConnect,
+            "Draw a line between the two selected shapes",
+        )
+
+        view_menu = self._menu("&View")
+        self._add_item(
+            view_menu,
+            "Zoom &In\tCtrl+=",
+            lambda e: self.canvas.ZoomIn(anchor="center"),
+            "Ctrl + mouse wheel also works",
+        )
+        self._add_item(
+            view_menu,
+            "Zoom &Out\tCtrl+-",
+            lambda e: self.canvas.ZoomOut(anchor="center"),
+            "Ctrl + mouse wheel also works",
+        )
+        self._add_item(
+            view_menu,
+            "Zoom to &Fit\tCtrl+F",
+            lambda e: self.canvas.ZoomToFit(),
+            "Fit everything on screen",
+        )
+        self._add_item(
+            view_menu, "R&eset Zoom\tCtrl+0", lambda e: self.canvas.ZoomReset(), "Back to 100%"
+        )
+
+    def _add_shape(self, shape):
+        self.canvas.InsertShape(shape, 999)
+        self.canvas.deselect()
+        self.canvas.update_virtual_size()
+
+    def OnConnect(self, event):
+        selected = self.canvas.getSelectedShapes()
+        if len(selected) == 2:
+            self.canvas.join_shapes(selected[0], selected[1])
+            self.canvas.deselect()
+            self.canvas.Refresh()
+        else:
+            wx.MessageBox(
+                "Select two shapes first, then Add > Connect two selected",
+                "wxdiagram demo",
+                wx.OK | wx.ICON_INFORMATION,
+                self,
+            )
+
+    def OnNew(self, event):
+        self.canvas.diagram = wxdiagram.Diagram()
+        self.canvas.deselect()
+        self.canvas.update_virtual_size()
+        self.canvas.Refresh()
+
+    def OnOpen(self, event):
+        with wx.FileDialog(
+            self,
+            "Open diagram",
+            wildcard="wxdiagram JSON (*.json)|*.json|All files|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            try:
+                diagram = load(dlg.GetPath())
+            except Exception as e:  # noqa: BLE001 - surface the problem to the user
+                wx.MessageBox(
+                    f"Could not load:\n{e}", "wxdiagram demo", wx.OK | wx.ICON_ERROR, self
+                )
+                return
+            self.canvas.SetDiagram(diagram)
+            self.canvas.deselect()
+            self.canvas.update_virtual_size()
+            self.canvas.ZoomToFit()
+
+    def OnSave(self, event):
+        with wx.FileDialog(
+            self,
+            "Save diagram as...",
+            wildcard="wxdiagram JSON (*.json)|*.json",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+            if not path.lower().endswith(".json"):
+                path += ".json"
+            save(self.canvas.diagram, path)
+            self.SetStatusText(f"Saved {path}")
+
+    def OnExit(self, event):
+        self.Close()
+
+
+def main():
+    app = wx.App(redirect=False)
+    frame = DemoFrame()
+    frame.Show()
+    app.MainLoop()
+
+
+if __name__ == "__main__":
+    main()

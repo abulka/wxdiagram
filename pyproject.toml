@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wxdiagram"
+version = "0.1.0"
+description = "A zoomable shape-and-connector canvas for wxPython"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE.md", "NOTICE.md"]
+authors = [{ name = "Andy Bulka", email = "abulka@gmail.com" }]
+maintainers = [{ name = "Andy Bulka", email = "abulka@gmail.com" }]
+keywords = ["wxpython", "diagram", "diagramming", "canvas", "editor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development",
+]
+dependencies = [
+    "wxpython>=4.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/abulka/wxdiagram"
+Repository = "https://github.com/abulka/wxdiagram"
+Issues = "https://github.com/abulka/wxdiagram/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["wxdiagram*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["bin", "docs", "pro"]
+
+[tool.ruff.lint]
+# Pyflakes + pycodestyle errors, migrated gradually. Keep the rule set small.
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"

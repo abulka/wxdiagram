@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        python: ["3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        if: runner.os != 'Linux'
+        run: uv run python -m pytest tests/ -q
+
+      # Linux wxPython wheels vary by distro, and wx needs a virtual display
+      - name: Test (Linux, xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          xvfb-run -a uv run python -m pytest tests/ -q
+        continue-on-error: true
+
+      - name: Build package
+        run: uv build
