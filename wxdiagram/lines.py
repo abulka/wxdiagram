@@ -898,7 +898,7 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
 
         start = (self._lineControlPoints[0][0], self._lineControlPoints[0][1])
         end = (self._lineControlPoints[-1][0], self._lineControlPoints[-1][1])
-        points, style = routing.route_edge(start, end, obstacles)
+        points, style = routing.route_edge(start, end, obstacles, spread=self._lane_offset())
         if len(points) != len(self._lineControlPoints):
             self.MakeLineControlPoints(len(points))
         for control, point in zip(self._lineControlPoints, points):
@@ -907,6 +907,28 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         self.SetSpline(style == "curved")
         self._sync_xy_from_control_points()
         return style
+
+    def _lane_offset(self, spacing=14.0):
+        """Sideways offset for parallel edges between the same two shapes."""
+        canvas = self.GetCanvas()
+        diagram = getattr(canvas, "diagram", None) if canvas is not None else None
+        if diagram is None or self._from is None or self._to is None:
+            return 0.0
+        peers = [
+            shape
+            for shape in diagram.shapes
+            if isinstance(shape, LineShape)
+            and shape is not self
+            and shape._from is not None
+            and shape._to is not None
+            and (
+                (shape._from is self._from and shape._to is self._to)
+                or (shape._from is self._to and shape._to is self._from)
+            )
+        ]
+        group = sorted(peers + [self], key=lambda line: (line.GetId(), id(line)))
+        index = group.index(self)
+        return (index - (len(group) - 1) / 2.0) * spacing
 
     def FindLineEndPoints(self):
         """

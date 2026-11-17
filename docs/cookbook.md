@@ -64,6 +64,10 @@ straight; otherwise the edge bows into a spline, and if curves are blocked it
 takes an orthogonal lane outside the obstacles.  The router knows nothing about
 layout - pass it the rectangles to avoid.
 
+Parallel edges between the same two shapes are spread into separate lanes
+(14 diagram units apart) automatically by `LineShape.autoRoute`; pass `spread`
+to `route_edge` directly if you route yourself.
+
 ## Edge labels
 
 ```python

@@ -85,7 +85,8 @@ pynsource canvas needs, without pulling any application code into the library.
 - Edge routing: `wxdiagram.routing.route_edge()` (also exported as
   `wxdiagram.route_edge`) and the opt-in `LineShape.autoRoute` pick a straight
   segment when it is clear, a deflected spline when that dodges unrelated
-  boxes, and an orthogonal lane as a last resort.  Off by default, so existing
+  boxes, and an orthogonal lane as a last resort.  Parallel edges between the
+  same two shapes are spread into separate lanes.  Off by default, so existing
   diagrams keep their exact look.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into

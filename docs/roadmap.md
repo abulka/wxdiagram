@@ -32,7 +32,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 ## 0.3 — edges
 
 - ✅ hybrid curved connectors with obstacle avoidance (straight → curved → orthogonal, `route_edge`)
-- ✅ orthogonal fallback; side selection and lane spreading still to do
+- ✅ orthogonal fallback; ✅ lane spreading for parallel edges; side selection still to do
 - ✅ edge hit-testing and labels (middle/start/end)
 - markers on curves, label collision avoidance
 

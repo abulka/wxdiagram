@@ -293,7 +293,8 @@ and `layout/route/mod.rs`.
   - ✅ fall back to a rounded orthogonal route.
   All in `wxdiagram/routing.py` (`route_edge`), opt-in via
   `LineShape.autoRoute`.
-- Side selection and lane-spread anchors (still to do).
+- ✅ lane spreading for parallel edges (automatic in `LineShape.autoRoute`);
+  explicit side selection still to do.
 - ✅ Edge hit-testing (segment corridor + label boxes), ✅ labels
   (`AddText`/`SetLabelText`, middle/start/end anchors); markers on curves still
   to do with the router.

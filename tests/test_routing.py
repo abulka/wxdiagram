@@ -2,6 +2,8 @@
 
 import wx
 
+import pytest
+
 import wxdiagram
 from wxdiagram.routing import route_edge, segment_intersects_rect, _quadratic
 
@@ -144,4 +146,38 @@ def test_autoroute_survives_repeated_link_updates(wx_app):
     second = [(p[0], p[1]) for p in line._lineControlPoints]
 
     assert first == second
+    frame.Destroy()
+
+
+def test_parallel_edges_are_spread_apart(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    a = _block(0, 0, 80, 60)
+    b = _block(320, 0, 400, 60)
+    canvas.AddShape(a)
+    canvas.AddShape(b)
+    first = canvas.join_shapes(a, b)
+    second = canvas.join_shapes(a, b)
+    for line in (first, second):
+        line.autoRoute = True
+        line.UpdateRoute()
+
+    y1 = first._lineControlPoints[0][1]
+    y2 = second._lineControlPoints[0][1]
+    assert y1 != y2
+    assert abs(y1 - y2) == pytest.approx(14.0)  # default lane spacing
+    frame.Destroy()
+
+
+def test_single_edge_has_no_lane_offset(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    a = _block(0, 0, 80, 60)
+    b = _block(320, 0, 400, 60)
+    canvas.AddShape(a)
+    canvas.AddShape(b)
+    line = canvas.join_shapes(a, b)
+    line.autoRoute = True
+    line.UpdateRoute()
+
+    assert line._lane_offset() == 0.0
+    assert line._lineControlPoints[0][1] == pytest.approx(30.0)
     frame.Destroy()

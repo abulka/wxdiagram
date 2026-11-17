@@ -79,16 +79,19 @@ def _quadratic(p1, control, p2, steps=CURVE_SAMPLES):
     return points
 
 
-def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND):
+def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND, spread=0.0):
     """Route an edge from ``p1`` to ``p2`` avoiding ``obstacles``.
 
     Returns ``(points, style)`` where style is ``straight``, ``curved`` or
     ``orthogonal``.  Falls back to the straight segment if nothing clears.
+
+    ``spread`` shifts the route sideways (perpendicular to the edge) so parallel
+    edges between the same pair of shapes do not overlap.  For a straight edge
+    both endpoints move (along the shape sides); for the other styles only the
+    interior points move, keeping the perimeter attachment exact.
     """
     p1 = (float(p1[0]), float(p1[1]))
     p2 = (float(p2[0]), float(p2[1]))
-    if not obstacles or _polyline_clear([p1, p2], obstacles, padding):
-        return [p1, p2], "straight"
 
     dx = p2[0] - p1[0]
     dy = p2[1] - p1[1]
@@ -99,6 +102,20 @@ def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND):
     # Perpendicular to the edge, used to bulge curves and pick lanes.
     perp = (-dy / length, dx / length)
     mid = ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0)
+
+    def spread_points(points, style):
+        if not spread:
+            return points
+        if style == "straight":
+            return [(x + perp[0] * spread, y + perp[1] * spread) for x, y in points]
+        return (
+            [points[0]]
+            + [(x + perp[0] * spread, y + perp[1] * spread) for x, y in points[1:-1]]
+            + [points[-1]]
+        )
+
+    if not obstacles or _polyline_clear([p1, p2], obstacles, padding):
+        return spread_points([p1, p2], "straight"), "straight"
 
     for distance in (bend, bend * 2.0, bend * 3.0):
         for sign in (1.0, -1.0):
@@ -113,7 +130,7 @@ def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND):
                 2.0 * on_curve[1] - mid[1],
             )
             if _polyline_clear(_quadratic(p1, control, p2), obstacles, padding):
-                return [p1, on_curve, p2], "curved"
+                return spread_points([p1, on_curve, p2], "curved"), "curved"
 
     # Orthogonal fallback: an L-ish route through a clear lane.
     horizontal = abs(dx) >= abs(dy)
@@ -126,9 +143,9 @@ def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND):
                 lane_x = mid[0] + distance * sign
                 points = [p1, (lane_x, p1[1]), (lane_x, p2[1]), p2]
             if _polyline_clear(points, obstacles, padding):
-                return points, "orthogonal"
+                return spread_points(points, "orthogonal"), "orthogonal"
 
-    return [p1, p2], "straight"
+    return spread_points([p1, p2], "straight"), "straight"
 
 
 __all__ = ["route_edge", "segment_intersects_rect", "ROUTE_BEND", "ROUTE_PADDING"]
