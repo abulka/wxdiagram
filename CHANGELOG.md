@@ -29,7 +29,9 @@ pynsource canvas needs, without pulling any application code into the library.
   for consistent image import.
 - `ShapeCanvas.delete_selected()` for one-step, undoable deletion.
 - The demo is now a kitchen-sink app: File/Edit/Add/Arrange/View menus covering
-  z-order, undo/redo, duplicate/delete, captions, bitmaps and image files.
+  z-order, undo/redo, duplicate/delete, captions, bitmaps and image files, plus
+  right-click context menus for shapes and empty canvas.
+- Demo shape insertion now repaints immediately instead of waiting for mouse motion.
 - `Shape.marqueeSelectable` so labels and decorations can opt out of marquee
   selection.
 

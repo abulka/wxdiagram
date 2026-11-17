@@ -15,8 +15,9 @@
 #   * Edit menu: undo/redo, duplicate, delete, select all, deselect.
 #   * Arrange menu: bring to front/forward, send backward/to back.
 #   * View menu: zoom controls and a toggle for click-to-raise z-order.
+#   * Right-click a shape for z-order, duplicate and delete; right-click empty
+#     canvas for selection and zoom commands.
 #   * Drag on empty canvas to marquee-select; Alt/Space/middle-drag pans.
-#   * Ctrl + click a Block to edit its label.
 #   * File menu: save and load the diagram as JSON.
 #   * Delete key removes the selection.  Ctrl+C / Ctrl+V copy and paste it.
 # ---------------------------------------------------------------------------------------------
@@ -228,6 +229,7 @@ class DemoFrame(wx.Frame):
         self.canvas = wxdiagram.ShapeCanvas(self)
         self.canvas.SetBackgroundColour(wx.WHITE)
         self.canvas.SetDiagram(wxdiagram.Diagram())
+        self.canvas.Bind(wx.EVT_RIGHT_UP, self.OnCanvasRightClick)
 
         self._create_menus()
         self.CreateStatusBar()
@@ -369,6 +371,60 @@ class DemoFrame(wx.Frame):
         if getattr(shape, "marqueeSelectable", True):
             self.canvas.select(shape)
         self.canvas.update_virtual_size()
+        self.canvas.Refresh()  # paint the new shape immediately
+
+    def OnCanvasRightClick(self, event):
+        shape = self.canvas.getCurrentShape(event)
+        if hasattr(shape, "item"):  # right-clicked on a resize handle
+            shape = shape.item
+        if shape is not None:
+            if shape not in self.canvas.getSelectedShapes():
+                self.canvas.deselect()
+                self.canvas.select(shape)
+            menu = self._shape_menu(shape)
+        else:
+            menu = self._canvas_menu()
+        self._show_popup(menu, event.GetPosition())
+
+    def _show_popup(self, menu, position):
+        try:
+            self.canvas.PopupMenu(menu, position)
+        finally:
+            menu.Destroy()
+
+    def _canvas_menu(self):
+        menu = wx.Menu()
+        self._popup_item(menu, "Select All", lambda e: self.OnSelectAll(e))
+        self._popup_item(menu, "Deselect", lambda e: self.canvas.deselect())
+        menu.AppendSeparator()
+        self._popup_item(menu, "Zoom In", lambda e: self.canvas.ZoomIn(anchor="center"))
+        self._popup_item(menu, "Zoom Out", lambda e: self.canvas.ZoomOut(anchor="center"))
+        self._popup_item(menu, "Zoom to Fit", lambda e: self.canvas.ZoomToFit())
+        self._popup_item(menu, "Reset Zoom", lambda e: self.canvas.ZoomReset())
+        return menu
+
+    def _shape_menu(self, shape):
+        menu = wx.Menu()
+        self._popup_item(menu, "Bring to Front", lambda e: self.canvas.bring_to_front())
+        self._popup_item(menu, "Bring Forward", lambda e: self.canvas.bring_forward())
+        self._popup_item(menu, "Send Backward", lambda e: self.canvas.send_backward())
+        self._popup_item(menu, "Send to Back", lambda e: self.canvas.send_to_back())
+        menu.AppendSeparator()
+        self._popup_item(menu, "Duplicate", lambda e: self.canvas.duplicate_selected())
+        self._popup_item(menu, "Delete", lambda e: self.canvas.delete_selected())
+        if hasattr(shape, "ResetSize"):
+            menu.AppendSeparator()
+            self._popup_item(menu, "Reset Image Size", lambda e: self._reset_image_size(shape))
+        return menu
+
+    def _popup_item(self, menu, label, handler):
+        item = menu.Append(wx.ID_ANY, label)
+        self.Bind(wx.EVT_MENU, handler, item)
+
+    def _reset_image_size(self, shape):
+        shape.ResetSize()
+        self.canvas.update_virtual_size()
+        self.canvas.Refresh()
 
     def OnSelectAll(self, event):
         self.canvas.deselect()
