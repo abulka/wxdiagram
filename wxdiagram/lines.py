@@ -63,9 +63,10 @@ def _catmull_rom_points(points, steps=12):
 
 class LineShape(LineShapeBase, Selectable, Resizeable):
     #: How attached lines are routed.  ``False`` (default) keeps the exact
-    #: straight-line look; ``"auto"`` (or legacy ``True``) is straight when the
-    #: path is clear and curved when a box blocks it, never orthogonal;
-    #: ``"curved"`` always draws a free bezier; ``"orthogonal"`` is the explicit
+    #: straight-line look; ``"auto"`` is straight when the path is clear and
+    #: curved when a box blocks it, never orthogonal; ``"avoid"`` (legacy
+    #: ``True``) does the same but may fall back to an orthogonal L/Z route;
+    #: ``"curved"`` always draws a free bezier; ``"orthogonal"`` always uses the
     #: stub + L/Z style.
     autoRoute = False
 
@@ -969,6 +970,9 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             spread=self._lane_offset(),
             prefer_curve=self.autoRoute == "curved",
             prefer_orthogonal=self.autoRoute == "orthogonal",
+            allow_orthogonal=(
+                self.autoRoute == "avoid" or self.autoRoute is True
+            ),
             start_normal=self._endpoint_normal(start, self._from),
             end_normal=self._endpoint_normal(end, self._to),
         )
@@ -993,7 +997,7 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         self.autoRoute = {
             "straight": False,
             "auto": "auto",
-            "avoid": "auto",  # legacy alias
+            "avoid": "avoid",
             "curved": "curved",
             "orthogonal": "orthogonal",
         }[mode]
@@ -1011,6 +1015,8 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             return "curved"
         if self.autoRoute == "orthogonal":
             return "orthogonal"
+        if self.autoRoute == "avoid" or self.autoRoute is True:
+            return "avoid"
         return "auto" if self.autoRoute else "straight"
 
     def ResetRoute(self):

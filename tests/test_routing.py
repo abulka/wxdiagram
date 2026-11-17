@@ -78,6 +78,14 @@ def test_auto_mode_never_uses_orthogonal():
     assert len(points) == 3
 
 
+def test_avoid_mode_falls_back_to_orthogonal():
+    obstacle = (80, -150, 120, 150)
+    points, style = route_edge((0, 0), (200, 0), [obstacle], allow_orthogonal=True)
+
+    assert style == "orthogonal"
+    assert len(points) > 3
+
+
 def test_route_avoids_every_obstacle():
     obstacles = [(40, -60, 70, 0), (40, -10, 70, 60)]
     start, end = (0, 0), (140, 0)
@@ -219,8 +227,10 @@ def test_route_mode_round_trip(wx_app):
     assert len(line._lineControlPoints) == 2
     assert line._lineControlPoints[0][1] == pytest.approx(30.0)
 
-    line.SetRouteMode("avoid")  # legacy alias for "auto"
+    line.SetRouteMode("auto")
     assert line.GetRouteMode() == "auto"
+    line.SetRouteMode("avoid")
+    assert line.GetRouteMode() == "avoid"
     frame.Destroy()
 
 

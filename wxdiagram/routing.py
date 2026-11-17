@@ -91,6 +91,7 @@ def route_edge(
     spread=0.0,
     prefer_curve=False,
     prefer_orthogonal=False,
+    allow_orthogonal=False,
     start_normal=None,
     end_normal=None,
 ):
@@ -104,8 +105,9 @@ def route_edge(
     straight/curve tiers and goes straight to an orthogonal L/Z route.  Otherwise
     a clear segment stays straight and curves are only used to dodge boxes.
 
-    Orthogonal routing is *only* used when ``prefer_orthogonal`` is set: the
-    "auto" mode (straight or curved) never produces right-angle detours.
+    Orthogonal routing is used when ``prefer_orthogonal`` is set (force the L/Z
+    route) or as a last resort when ``allow_orthogonal`` is set ("avoid" mode).
+    The "auto" mode (straight or curved) never produces right-angle detours.
 
     ``spread`` shifts the route sideways (perpendicular to the edge) so parallel
     edges between the same pair of shapes do not overlap.  For a straight edge
@@ -186,7 +188,7 @@ def route_edge(
                 return spread_points(points, "curved"), "curved"
             best_curve = points  # last/largest deflection: best effort
 
-    if best_curve is not None:
+    if best_curve is not None and not (allow_orthogonal or prefer_orthogonal):
         # No clear curve, and auto/curved must not fall back to orthogonal.
         return spread_points(best_curve, "curved"), "curved"
 
@@ -232,6 +234,8 @@ def route_edge(
                 full.append(point)
         return spread_points(full, "orthogonal"), "orthogonal"
 
+    if best_curve is not None:
+        return spread_points(best_curve, "curved"), "curved"
     return spread_points([p1, p2], "straight"), "straight"
 
 

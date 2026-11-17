@@ -82,13 +82,12 @@ pynsource canvas needs, without pulling any application code into the library.
   `GetLabelPosition()` / `SetLabelPosition()` control the anchor.  Labels are
   part of the saved regions, and line hit-testing now includes the label boxes,
   so clicking a label selects the edge.
-- Route modes are now `straight` / `auto` / `curved` / `orthogonal`
-  (`LineShape.SetRouteMode`; `auto` and the legacy `avoid` are the same mode,
-  and `GetRouteMode()` always returns the canonical name).  `auto` is straight
-  when the path is clear and curves when a box blocks it - it never produces
-  orthogonal detours; orthogonal is explicit only.  Curves bow away from the
-  attachment sides using their normals, and fall back to the chord normal when
-  sides are unavailable.
+- Route modes are now `straight` / `auto` / `avoid` / `curved` / `orthogonal`
+  (`LineShape.SetRouteMode`; legacy `autoRoute = True` means `avoid`).  `auto`
+  is straight when clear and curves when blocked, never orthogonal; `avoid`
+  does the same but may fall back to an orthogonal L/Z route; `orthogonal` is
+  forced.  Curves bow away from the attachment sides using their normals, and
+  fall back to the chord normal when sides are unavailable.
 - Edge routing: `wxdiagram.routing.route_edge()` (also exported as
   `wxdiagram.route_edge`) and `LineShape.autoRoute` pick a straight segment
   when it is clear, a deflected spline when that dodges unrelated boxes, and an

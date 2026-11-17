@@ -58,7 +58,7 @@ line.autoRoute = "auto"      # straight, or curved around boxes (no right angles
 line.autoRoute = "curved"    # always bow the edge (free bezier)
 line.UpdateRoute()           # "straight", "curved" or "orthogonal"
 
-line.SetRouteMode("straight")  # or "auto" / "curved" / "orthogonal"
+line.SetRouteMode("straight")  # or "auto" / "avoid" / "curved" / "orthogonal"
 line.GetRouteMode()
 ```
 

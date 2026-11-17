@@ -234,7 +234,8 @@ def _populate(canvas):
     edge_pair(450, 450, "straight", "straight", "LIGHT BLUE")
     edge_pair(520, 520, "curved", "curved", "PALE GREEN")
     edge_pair(590, 590, "auto", "auto", "PALE GREEN", blocker=True)
-    edge_pair(670, 650, "orthogonal", "orthogonal", "LIGHT YELLOW")
+    edge_pair(660, 660, "avoid", "avoid", "PALE GREEN", blocker=True)
+    edge_pair(740, 720, "orthogonal", "orthogonal", "LIGHT YELLOW")
 
     # -- lines and arrows -------------------------------------------------------------
     captions.append(make_caption(850, 410, "LINES & ARROWS"))
@@ -487,6 +488,7 @@ class DemoFrame(wx.Frame):
             for label, mode in (
                 ("Edge: &Straight", "straight"),
                 ("Edge: &Curved", "curved"),
+                ("Edge: &Auto (straight or curved)", "auto"),
                 ("Edge: &Avoid boxes", "avoid"),
                 ("Edge: &Orthogonal", "orthogonal"),
             ):
