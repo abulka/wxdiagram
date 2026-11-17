@@ -16,9 +16,19 @@ pynsource canvas needs, without pulling any application code into the library.
   manage their own scrollbars.
 - Documented subclass pattern for handling Shift+wheel while delegating
   Ctrl+wheel zoom to the library.
+- Marquee selection (plain drag on empty canvas), Shift/Ctrl additive marquee,
+  Esc to clear, arrow-key nudge (Shift = 10px), duplicate, bring-to-front /
+  send-to-back, and a snapshot-based undo/redo stack.
+- `Shape.marqueeSelectable` so labels and decorations can opt out of marquee
+  selection.
 
 ### Changed
 
+- Plain drag on empty canvas now draws a marquee; Alt/Space/middle-drag pans.
+  Set `emptyDragMode = ShapeCanvas.EMPTY_DRAG_PAN` for the old behaviour.
+- `Shape.Copy` no longer uses `copy.deepcopy` (wx fonts/bitmaps are native
+  handles and could not be pickled); it copies geometry/regions and shares wx
+  objects.
 - Wheel scrolling is calibrated to `WHEEL_SCROLL_PIXELS` (20px) per notch and
   accumulates fractional trackpad deltas, so macOS/trackpad scrolling is smooth
   instead of jumping by several lines per event.

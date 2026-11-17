@@ -14,6 +14,8 @@ Supersedes: `ogl2/PLAN-2026.md` (keep that file as history; add a
   opt-outs.
 - pynsource now delegates the whole viewport to wxdiagram (zoom, Ctrl+wheel,
   pinch, drag-to-pan, virtual size); its `CanvasResizer` duplicate is deleted.
+- Editing pack landed: marquee selection, nudge, duplicate, z-order and
+  snapshot undo/redo (with a pynsource graph-aware snapshot provider).
 - Decision update: pynsource keeps **one** canvas (`wxdiagram`), removes the
   vendored `src/ogl` and the `ogl2` dependency, and makes the diagram free.
   Pro remains only for ALSM module visualisation. The release stays on `1.x`

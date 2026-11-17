@@ -15,6 +15,7 @@
 import wx
 from wx import (
     EVT_KEY_DOWN,
+    EVT_KEY_UP,
     EVT_LEFT_DCLICK,
     EVT_LEFT_DOWN,
     EVT_LEFT_UP,
@@ -262,6 +263,8 @@ class ShapeEvtHandler:
 # Generic Graphic items ---------------------------------------------------------------------------------------
 class Shape(ShapeEvtHandler):
     GraphicsInSizeToContents = False  # ANDY ADDED - needed by divided text formatting as a flag
+    #: include this shape in marquee selection
+    marqueeSelectable = True
 
     def __init__(self, x=[], y=[]):
         self.x = x  # list of x coord
@@ -320,7 +323,64 @@ class Shape(ShapeEvtHandler):
         self.y = list(map((lambda v: v + y), self.y))
 
     def Copy(self):
-        clone = copy.deepcopy(self)
+        """Return a detached copy of this shape.
+
+        wx objects (fonts, pens, brushes, bitmaps) are shared, not deep-copied:
+        they are native handles and cannot be pickled.  Geometry and region text
+        are copied, while attached lines and the graph-node back-reference are
+        cleared so a duplicate starts clean.
+        """
+        clone = copy.copy(self)
+        clone.x = list(self.x)
+        clone.y = list(self.y)
+        clone.pen = list(self.pen)
+        clone.fill = list(self.fill)
+        clone._id = 0
+        clone._regions = [ShapeRegion(region) for region in self._regions]
+        clone._controlPoints = []
+        clone._lines = []
+        clone._attachmentPoints = list(self._attachmentPoints)
+
+        for key, value in vars(self).items():
+            if key in {
+                "x",
+                "y",
+                "pen",
+                "fill",
+                "_regions",
+                "_controlPoints",
+                "_lines",
+                "_attachmentPoints",
+                "_canvas",
+                "_parent",
+                "_compositeChildren",
+                "_children",
+                "node",
+                "_lineControlPoints",
+                "_arcArrows",
+            }:
+                continue
+            if isinstance(value, (list, dict, set)):
+                clone.__dict__[key] = copy.copy(value)
+
+        # Line geometry lives in RealPoint objects, not x/y.
+        if getattr(self, "_lineControlPoints", None):
+            clone._lineControlPoints = [wx.RealPoint(p[0], p[1]) for p in self._lineControlPoints]
+        if getattr(self, "_arcArrows", None):
+            clone._arcArrows = list(self._arcArrows)
+
+        for attr in ("_compositeChildren", "_children"):
+            children = getattr(self, attr, None)
+            if children:
+                copied = [child.Copy() for child in children]
+                for child in copied:
+                    if hasattr(child, "_parent"):
+                        child._parent = clone
+                clone.__dict__[attr] = copied
+
+        if hasattr(clone, "node"):
+            clone.node = None
+
         clone.AssignNewIds()
         return clone
 
@@ -1171,6 +1231,14 @@ class ShapeCanvas(ScrolledWindow):
     WHEEL_SCROLL_PIXELS = 20
     #: pixels of movement before a canvas drag becomes a pan
     PAN_START_THRESHOLD = 3
+    #: what a plain left-drag on empty canvas does: draw a marquee or pan
+    EMPTY_DRAG_PAN = "pan"
+    EMPTY_DRAG_MARQUEE = "marquee"
+    emptyDragMode = EMPTY_DRAG_MARQUEE
+    #: marquee selects shapes it touches; False would require full containment
+    marqueeSelectsTouching = True
+    MARQUEE_MIN_SIZE = 3
+    UNDO_LIMIT = 50
 
     def __init__(self, parent, id=-1, pos=(-1, -1), size=(-1, -1), style=0, name=""):
         ScrolledWindow.__init__(self, parent, id, pos, size, style, name)
@@ -1191,6 +1259,20 @@ class ShapeCanvas(ScrolledWindow):
         #: when False, Ctrl+wheel and drag-to-pan are not bound to the mouse wheel/drag
         self.zoomInputEnabled = True
         self.panOnDrag = True
+        self.duplicateKeyEnabled = True
+        self.nudgeKeysEnabled = True
+        self._space_down = False
+        self._marquee_active = False
+        self._marquee_start = (0, 0)
+        self._marquee_current = (0, 0)
+        self._marquee_additive = False
+        self._marquee_base = []
+        self.undoKeyBindings = True
+        self._undo_stack = []
+        self._redo_stack = []
+        self._undo_pending = None
+        self._undo_depth = 0
+        self._restoring_state = False
         # cache + guard for the virtual size calculations
         self._bounds_cache = None
         self._in_resize = False
@@ -1209,10 +1291,13 @@ class ShapeCanvas(ScrolledWindow):
         self.Bind(EVT_MOTION, self.OnMotion)
         self.Bind(wx.EVT_MOUSEWHEEL, self.OnMouseWheel)
         self.Bind(wx.EVT_MAGNIFY, self.OnMagnify)  # macOS trackpad pinch
-        # Key events: the default OnKeyDown implements Delete/Tab/Ctrl+A/Ctrl+C/Ctrl+V.
-        # Subclasses that want to handle keys themselves should override OnKeyDown, not
-        # add a second EVT_KEY_DOWN binding, and should call event.Skip() when done.
+        self.Bind(wx.EVT_MIDDLE_DOWN, self._pan_begin)
+        self.Bind(wx.EVT_MIDDLE_UP, self._pan_end)
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
+        # Key events: the default OnKeyDown implements Delete/Tab/Ctrl+A/Ctrl+C/Ctrl+V,
+        # arrows, Esc, duplicate and z-order.
         self.Bind(EVT_KEY_DOWN, self.OnKeyDown)
+        self.Bind(EVT_KEY_UP, self.OnKeyUp)
 
         # ANDY ADDED ###
         self._dragState = NoDragging
@@ -1270,6 +1355,11 @@ class ShapeCanvas(ScrolledWindow):
         self.diagram.DeleteShape(shape)
         self._bounds_changed()
 
+    @staticmethod
+    def _ctrl(event):
+        # CmdDown() is Command on macOS and Control elsewhere.
+        return event.ControlDown() or event.CmdDown()
+
     def OnKeyDown(self, event):
         """Default key handling.  Subclasses may override this, but should remember
         to call ``event.Skip()`` when the key is not handled."""
@@ -1277,14 +1367,34 @@ class ShapeCanvas(ScrolledWindow):
             event.Skip()
             return
         key = event.GetKeyCode()
-        if key in (wx.WXK_DELETE, 127):  # DELETE
-            for s in list(self.getSelectedShapes()):
-                try:
-                    self.diagram.DeleteShape(s)
-                except ValueError:
-                    # already deleted (e.g. by an application-level accelerator)
-                    pass
+
+        if key == wx.WXK_SPACE:
+            self._space_down = True
+            event.Skip()
+            return
+        if key == wx.WXK_ESCAPE:
             self.deselect()
+            self.Refresh()
+            return
+
+        if key in (wx.WXK_LEFT, wx.WXK_RIGHT, wx.WXK_UP, wx.WXK_DOWN) and self.nudgeKeysEnabled:
+            step = 10 if event.ShiftDown() else 1
+            dx = -step if key == wx.WXK_LEFT else step if key == wx.WXK_RIGHT else 0
+            dy = -step if key == wx.WXK_UP else step if key == wx.WXK_DOWN else 0
+            self.nudge_selected(dx, dy)
+        elif key in (wx.WXK_DELETE, 127):  # DELETE
+            self.begin_undo()
+            try:
+                for s in list(self.getSelectedShapes()):
+                    try:
+                        self.diagram.DeleteShape(s)
+                    except ValueError:
+                        # already deleted (e.g. by an application-level accelerator)
+                        pass
+                self.deselect()
+                self._bounds_changed()
+            finally:
+                self.commit_undo()
         elif key == 9:  # TAB
             shapes = getattr(self.diagram, "shapes", []) if self.diagram else []
             if not shapes:
@@ -1296,25 +1406,47 @@ class ShapeCanvas(ScrolledWindow):
                 self.select(shapes[(index + 1) % len(shapes)])
             else:
                 self.select(shapes[0])
-        elif key == 65 and event.ControlDown():  # CTRL-A
+        elif key == 65 and self._ctrl(event):  # CTRL-A
             for s in getattr(self.diagram, "shapes", []):
                 self.select(s)
-        elif key == 67 and event.ControlDown():  # CTRL-C
+        elif key == 67 and self._ctrl(event):  # CTRL-C
             del clipboard[:]
             clipboard.extend(self.getSelectedShapes())
-        elif key == 86 and event.ControlDown():  # CTRL-V
-            for i in clipboard:
-                self.AddShape(i.Copy())
-        elif key == 68 and event.ControlDown():  # CTRL-D - debug info
-            pt = GetMousePosition()
-            mouseX = pt[0] - self.GetScreenPosition().x
-            mouseY = pt[1] - self.GetScreenPosition().y
-            print("%s,%s %s" % (mouseX, mouseY, self.shapeFromPoint((mouseX, mouseY))))
+        elif key == 86 and self._ctrl(event):  # CTRL-V
+            self.begin_undo()
+            try:
+                for i in clipboard:
+                    self.AddShape(i.Copy())
+                self._bounds_changed()
+            finally:
+                self.commit_undo()
+        elif key == 68 and self._ctrl(event):  # CTRL-D
+            if self.duplicateKeyEnabled and not event.ShiftDown():
+                self.duplicate_selected()
+            elif event.ShiftDown():  # CTRL-SHIFT-D - debug info
+                pt = GetMousePosition()
+                mouseX = pt[0] - self.GetScreenPosition().x
+                mouseY = pt[1] - self.GetScreenPosition().y
+                print("%s,%s %s" % (mouseX, mouseY, self.shapeFromPoint((mouseX, mouseY))))
+            else:
+                event.Skip()
+        elif self.undoKeyBindings and key == 90 and self._ctrl(event):  # CTRL-Z
+            if event.ShiftDown():
+                self.redo()
+            else:
+                self.undo()
+        elif self.undoKeyBindings and key == 89 and self._ctrl(event):  # CTRL-Y
+            self.redo()
         else:
             event.Skip()
             self.Refresh()
             return
         self.Refresh()
+
+    def OnKeyUp(self, event):
+        if event.GetKeyCode() == wx.WXK_SPACE:
+            self._space_down = False
+        event.Skip()
 
     def onPaintEvent(self, event):
         dc = PaintDC(self)
@@ -1323,6 +1455,7 @@ class ShapeCanvas(ScrolledWindow):
         # for item in self.diagram.shapes + self.nodes:
         #     item.draw(dc)
         self.Redraw(dc)  # does the above two lines
+        self._draw_marquee(dc)
 
     def OnRightDown(self, event):
         # ANDY
@@ -1417,6 +1550,282 @@ class ShapeCanvas(ScrolledWindow):
         if self.getCurrentShape(event):
             self.getCurrentShape(event).OnLeftDClick(event)
 
+    # --- Undo / redo -------------------------------------------------------
+
+    def snapshot_state(self):
+        """Return a comparable snapshot of the diagram state.
+
+        Applications with their own model can override this and restore_state()
+        with an opaque snapshot object; the undo stack only compares snapshots
+        for equality.
+        """
+        if self.diagram is None:
+            return None
+        shapes = tuple(self.diagram.shapes)
+        geometry = tuple(
+            (s, tuple(s.x), tuple(s.y), s.GetId(), s.IsShown()) for s in shapes
+        )
+        return {"shapes": shapes, "geometry": geometry}
+
+    def restore_state(self, snapshot):
+        """Restore a snapshot produced by snapshot_state()."""
+        if snapshot is None or self.diagram is None:
+            return
+        self._restoring_state = True
+        try:
+            self.deselect()
+            self.diagram.shapes[:] = list(snapshot["shapes"])
+            for shape, x, y, shape_id, shown in snapshot["geometry"]:
+                shape.x = list(x)
+                shape.y = list(y)
+                shape.SetId(shape_id)
+                shape.Show(shown)
+                self._attach_canvas(shape)
+                shape.MoveLinks(dc=None)
+            self.invalidate_bounds_cache()
+            self.update_virtual_size()
+            self.Refresh()
+        finally:
+            self._restoring_state = False
+
+    def begin_undo(self):
+        """Start a logical undoable operation (nesting is allowed)."""
+        if self._restoring_state:
+            return
+        if self._undo_depth == 0:
+            self._undo_pending = self.snapshot_state()
+        self._undo_depth += 1
+
+    def commit_undo(self):
+        """Finish a logical undoable operation."""
+        if self._restoring_state or self._undo_depth == 0:
+            return
+        self._undo_depth -= 1
+        if self._undo_depth > 0:
+            return
+        before = self._undo_pending
+        self._undo_pending = None
+        if before is None:
+            return
+        after = self.snapshot_state()
+        if after == before:
+            return
+        self._undo_stack.append(before)
+        if len(self._undo_stack) > self.UNDO_LIMIT:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def clear_undo(self):
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._undo_pending = None
+        self._undo_depth = 0
+
+    def canUndo(self):
+        return bool(self._undo_stack)
+
+    def canRedo(self):
+        return bool(self._redo_stack)
+
+    def undo(self):
+        if not self._undo_stack:
+            return False
+        current = self.snapshot_state()
+        previous = self._undo_stack.pop()
+        self._redo_stack.append(current)
+        self.restore_state(previous)
+        return True
+
+    def redo(self):
+        if not self._redo_stack:
+            return False
+        current = self.snapshot_state()
+        following = self._redo_stack.pop()
+        self._undo_stack.append(current)
+        self.restore_state(following)
+        return True
+
+    # --- Marquee selection -------------------------------------------------
+
+    @staticmethod
+    def _shape_bounds(shape):
+        if not shape.x or not shape.y:
+            return None
+        return min(shape.x), min(shape.y), max(shape.x), max(shape.y)
+
+    @staticmethod
+    def _rect_intersects(a, b):
+        return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
+
+    @staticmethod
+    def _rect_contains(outer, inner):
+        return (
+            outer[0] <= inner[0]
+            and outer[1] <= inner[1]
+            and outer[2] >= inner[2]
+            and outer[3] >= inner[3]
+        )
+
+    def _marquee_rect(self):
+        x1, y1 = self._marquee_start
+        x2, y2 = self._marquee_current
+        return min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+
+    def _marquee_begin(self, event):
+        point = self.getEventCoordinates(event)
+        self._marquee_active = True
+        self._marquee_start = point
+        self._marquee_current = point
+        self._marquee_additive = event.ShiftDown() or self._ctrl(event)
+        self._marquee_base = list(self.getSelectedShapes()) if self._marquee_additive else []
+        if not self._marquee_additive:
+            self.deselect()
+        if not self.HasCapture():
+            self.CaptureMouse()
+        self.SetCursor(wx.Cursor(wx.CURSOR_CROSS))
+        self.Refresh()
+
+    def _marquee_update(self, event):
+        self._marquee_current = self.getEventCoordinates(event)
+        self._apply_marquee_selection()
+        self.Refresh()
+
+    def _apply_marquee_selection(self):
+        if self.diagram is None:
+            return
+        rect = self._marquee_rect()
+        tiny = (
+            abs(rect[2] - rect[0]) < self.MARQUEE_MIN_SIZE
+            and abs(rect[3] - rect[1]) < self.MARQUEE_MIN_SIZE
+        )
+        matches = []
+        if not tiny:
+            for shape in self.diagram.shapes:
+                if not getattr(shape, "IsShown", lambda: True)():
+                    continue
+                if not getattr(shape, "marqueeSelectable", True):
+                    continue
+                bounds = self._shape_bounds(shape)
+                if bounds is None:
+                    continue
+                hit = (
+                    self._rect_intersects(rect, bounds)
+                    if self.marqueeSelectsTouching
+                    else self._rect_contains(rect, bounds)
+                )
+                if hit:
+                    matches.append(shape)
+
+        wanted = (self._marquee_base if self._marquee_additive else []) + matches
+        current = self.getSelectedShapes()
+        if {id(s) for s in current} == {id(s) for s in wanted}:
+            return
+        self.deselect()
+        for shape in wanted:
+            self.select(shape)
+
+    def _marquee_end(self):
+        if not self._marquee_active:
+            return
+        self._marquee_active = False
+        self._marquee_base = []
+        if self.HasCapture():
+            self.ReleaseMouse()
+        self.SetCursor(wx.NullCursor)
+        self.Refresh()
+
+    def _draw_marquee(self, dc):
+        if not self._marquee_active:
+            return
+        rect = self._marquee_rect()
+        if (
+            abs(rect[2] - rect[0]) < self.MARQUEE_MIN_SIZE
+            and abs(rect[3] - rect[1]) < self.MARQUEE_MIN_SIZE
+        ):
+            return
+        dc.SetPen(wx.Pen(wx.BLUE, 1, wx.PENSTYLE_SHORT_DASH))
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        dc.DrawRectangle(
+            int(rect[0]), int(rect[1]), int(rect[2] - rect[0]), int(rect[3] - rect[1])
+        )
+
+    # --- Editing helpers ---------------------------------------------------
+
+    def nudge_selected(self, dx, dy):
+        """Move all selected shapes by dx,dy (no-op if nothing is selected)."""
+        shapes = [s for s in self.getSelectedShapes() if not isinstance(s, Node)]
+        if not shapes:
+            return
+        self.begin_undo()
+        try:
+            for shape in shapes:
+                shape.move(dx, dy)
+                shape.MoveLinks(dc=None)
+            self.invalidate_bounds_cache()
+            self.update_virtual_size()
+            self.Refresh()
+        finally:
+            self.commit_undo()
+
+    def duplicate_selected(self, offset=(20, 20)):
+        """Copy selected top-level shapes and select the copies."""
+        originals = [
+            s
+            for s in self.getSelectedShapes()
+            if not isinstance(s, Node)
+            and getattr(s, "_from", None) is None
+            and getattr(s, "_to", None) is None
+        ]
+        if not originals:
+            return []
+        self.begin_undo()
+        try:
+            clones = []
+            for shape in originals:
+                clone = shape.Copy()
+                clone.move(*offset)
+                self.AddShape(clone)
+                clones.append(clone)
+            self.deselect()
+            for clone in clones:
+                self.select(clone)
+            self.update_virtual_size()
+            self.Refresh()
+            return clones
+        finally:
+            self.commit_undo()
+
+    def bring_to_front(self, shapes=None):
+        """Move the given shapes (default: selection) to the top of the z-order."""
+        shapes = list(shapes) if shapes is not None else list(self.getSelectedShapes())
+        self.begin_undo()
+        try:
+            for shape in shapes:
+                if self.diagram is not None and shape in self.diagram.shapes:
+                    self.diagram.ChangeShapeOrder(shape, len(self.diagram.shapes) - 1)
+            self.Refresh()
+        finally:
+            self.commit_undo()
+
+    def send_to_back(self, shapes=None):
+        """Move the given shapes (default: selection) to the bottom of the z-order."""
+        shapes = list(shapes) if shapes is not None else list(self.getSelectedShapes())
+        self.begin_undo()
+        try:
+            for shape in shapes:
+                if self.diagram is not None and shape in self.diagram.shapes:
+                    self.diagram.ChangeShapeOrder(shape, 0)
+            self.Refresh()
+        finally:
+            self.commit_undo()
+
+    def _capture_lost(self, event):
+        self._panning = False
+        self._pan_pending = False
+        self._marquee_active = False
+        self._marquee_base = []
+        self.SetCursor(wx.NullCursor)
+
     def OnLeftDown(self, event):
         """If over a shape, selects the shape. Selecting the shape will create various Nodes
         attached to the shape, depending on whether it is Selectable, Resizable, Connectable etc.
@@ -1437,22 +1846,31 @@ class ShapeCanvas(ScrolledWindow):
             print("Master OnLeftDown over shape", shape)
 
         if shape is None:
-            # clicked on empty space: deselect and start panning if enabled
-            self.deselect()
-            if self.panOnDrag:
+            # Empty canvas: plain drag draws a marquee; Alt/Space/middle drag pans.
+            pan_requested = self.panOnDrag and (
+                event.AltDown() or getattr(self, "_space_down", False)
+            )
+            if pan_requested:
                 self._pan_begin(event)
+            elif self.panOnDrag and self.emptyDragMode == self.EMPTY_DRAG_PAN:
+                self.deselect()
+                self._pan_begin(event)
+            else:
+                self._marquee_begin(event)
             return
 
         if not isinstance(shape, (Node, ConnectionShape)):
             # Bring normal shapes to top, not Node shapes or ConnectionShape lines
             self.diagram.ChangeShapeOrder(shape, 999)
 
+        # A click may become a drag or resize; record only if it changes state.
+        self.begin_undo()
         shape.OnLeftDown(event)  # some shapes love this, Nodes and ConnectionShape don't implement
 
         # Deselect all other shapes before selecting the current shape, unless shift is down.
         # This must happen for *every* kind of shape (including lines and nodes), not just
         # Selectable ones, otherwise the previous shape's handles stay behind.
-        if not event.ShiftDown():
+        if not (event.ShiftDown() or self._ctrl(event)):
             self.deselect()
         self.select(shape)  # will auto create various Nodes attached to points on the shape
 
@@ -1468,6 +1886,9 @@ class ShapeCanvas(ScrolledWindow):
             - releasing over proper INode, shape will be INode (or ONode if dragging in reverse, from out to in)
             - releasing over "empty" canvas area, shape will be a ResizeableNode
         """
+        if self._marquee_active:
+            self._marquee_end()
+            return
         if getattr(self, "_panning", False):
             self._pan_end()
             self.Refresh()
@@ -1503,6 +1924,7 @@ class ShapeCanvas(ScrolledWindow):
                 raise
 
         self._avoid_dangling_lines(shape)
+        self.commit_undo()
 
         self.Refresh()
         # print("after OnLeftUp, getSelectedShapes()=", self.getSelectedShapes())
@@ -1523,6 +1945,9 @@ class ShapeCanvas(ScrolledWindow):
         When creating a connecting line, initially an ONode is selected (due to an initial OnLeftDown)
         then a newly spawned ConnectionLine is selected during the entire drag.
         """
+        if self._marquee_active:
+            self._marquee_update(event)
+            return
         if getattr(self, "_panning", False):
             self._pan_move(event)
             return
@@ -1842,10 +2267,11 @@ class ShapeCanvas(ScrolledWindow):
         self._pan_pending = True
         self._pan_start = event.GetPosition()
         self._pan_last = event.GetPosition()
-        self.CaptureMouse()
+        if not self.HasCapture():
+            self.CaptureMouse()
         self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
 
-    def _pan_end(self):
+    def _pan_end(self, event=None):
         if getattr(self, "_panning", False):
             self._panning = False
             self._pan_pending = False
@@ -2321,6 +2747,8 @@ class TextShape(Shape):
     Useful for section headings and annotations.  It is not hit-testable, so it
     never gets in the way of selecting the shapes around it.
     """
+
+    marqueeSelectable = False
 
     def __init__(self, x=0, y=0, text="", colour="GRAY", font=None):
         Shape.__init__(self, [x], [y])

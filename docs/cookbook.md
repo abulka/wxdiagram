@@ -77,6 +77,19 @@ caption = wxdiagram.TextShape(20, 20, "Section heading", colour="GRAY")
 canvas.AddShape(caption)
 ```
 
+## Selecting and editing
+
+- Plain drag on empty canvas draws a **marquee**; Shift/Ctrl adds to the selection.
+- Esc clears the selection.
+- Arrow keys nudge selected shapes by 1px; Shift+Arrow nudges by 10px.
+- Ctrl+D duplicates the selection, Ctrl+Z / Ctrl+Shift+Z undo/redo.
+- Alt/Space/middle-drag pans. Set `canvas.emptyDragMode = canvas.EMPTY_DRAG_PAN`
+  if you want plain drag to pan instead.
+
+Undo/redo snapshots the shape list and geometry by default. Applications with a
+separate model can override `snapshot_state()` and `restore_state()` to snapshot
+their own state (pynsource snapshots its graph model this way).
+
 ## Programmatic selection
 
 ```python

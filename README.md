@@ -21,8 +21,9 @@ OGLlike attribution.
   `ZoomToFit`, `CenterOn`; Ctrl+wheel and macOS pinch zoom anchored at the
   pointer; drag empty canvas to pan; mouse-wheel scrolling; virtual size tracks
   the diagram so panning cannot wander into empty space.
-- **Selection and handles**: shift-click multi-select, resize handles, hover
-  ports, drag port-to-shape to connect.
+- **Selection and editing**: marquee select (plain drag on empty canvas),
+  Shift/Ctrl add, Esc clear, arrow-key nudge, duplicate, z-order, undo/redo,
+  resize handles, hover ports, and drag port-to-shape to connect.
 - **Connectors**: attached lines whose endpoints are clipped to the shapes'
   perimeters, so edges always meet the facing sides and re-route when shapes
   move. Explicit lines support arrowheads (start/middle/end), splines, dashed

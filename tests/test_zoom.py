@@ -287,6 +287,7 @@ def test_subclass_can_handle_shift_wheel_and_delegate_the_rest(wx_app):
 def test_drag_empty_canvas_pans(wx_app):
     """Dragging empty canvas pans (panOnDrag defaults on)."""
     frame, canvas = _make_canvas(wx_app)
+    canvas.emptyDragMode = canvas.EMPTY_DRAG_PAN
     canvas.AddShape(wxdiagram.RectangleShape(0, 0, 200, 200))
     canvas.SetScrollbars(1, 1, 4000, 4000, 500, 400)
     wx.Yield()
@@ -316,6 +317,7 @@ def test_drag_empty_canvas_pans(wx_app):
 def test_tiny_drag_does_not_pan(wx_app):
     """A click with a small hand tremor should not drag the canvas."""
     frame, canvas = _make_canvas(wx_app)
+    canvas.emptyDragMode = canvas.EMPTY_DRAG_PAN
     canvas.AddShape(wxdiagram.RectangleShape(0, 0, 200, 200))
     canvas.SetScrollbars(1, 1, 4000, 4000, 500, 400)
     wx.Yield()
