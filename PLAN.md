@@ -295,6 +295,8 @@ and `layout/route/mod.rs`.
   `LineShape.autoRoute`; `"curved"` draws a free bezier even when clear.
 - ✅ lane spreading for parallel edges (automatic in `LineShape.autoRoute`);
   explicit side selection still to do.
+- ✅ per-edge route style (`SetRouteMode`/`GetRouteMode`, demo + pynsource
+  right-click); curved mode draws a free bezier when clear.
 - ✅ Edge hit-testing (segment corridor + label boxes), ✅ labels
   (`AddText`/`SetLabelText`, middle/start/end anchors); markers on curves still
   to do with the router.

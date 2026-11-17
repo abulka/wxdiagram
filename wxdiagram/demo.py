@@ -235,10 +235,8 @@ def _populate(canvas):
         uses.autoRoute = "curved"
         uses.AddText("uses")
         uses.UpdateRoute()
-    stores = canvas.join_shapes(repository, service)
-    if stores is not None:
-        stores.autoRoute = "curved"
-        stores.UpdateRoute()
+    # deliberately left straight: a mix of edge styles
+    canvas.join_shapes(repository, service)
     # vertical relationship: controller bottom -> service top
     delegates = canvas.join_shapes(controller, service)
     if delegates is not None:
@@ -465,6 +463,18 @@ class DemoFrame(wx.Frame):
         menu.AppendSeparator()
         self._popup_item(menu, "Duplicate", lambda e: self.canvas.duplicate_selected())
         self._popup_item(menu, "Delete", lambda e: self.canvas.delete_selected())
+        if isinstance(shape, wxdiagram.LineShape) and getattr(shape, "_from", None) is not None:
+            menu.AppendSeparator()
+            for label, mode in (
+                ("Edge: &Straight", "straight"),
+                ("Edge: &Curved", "curved"),
+                ("Edge: &Avoid boxes", "avoid"),
+            ):
+                self._popup_item(
+                    menu,
+                    label,
+                    lambda e, s=shape, m=mode: self._set_route_mode(s, m),
+                )
         if hasattr(shape, "ResetSize"):
             menu.AppendSeparator()
             self._popup_item(menu, "Reset Image Size", lambda e: self._reset_image_size(shape))
@@ -473,6 +483,11 @@ class DemoFrame(wx.Frame):
     def _popup_item(self, menu, label, handler):
         item = menu.Append(wx.ID_ANY, label)
         self.Bind(wx.EVT_MENU, handler, item)
+
+    def _set_route_mode(self, shape, mode):
+        shape.SetRouteMode(mode)
+        self.canvas.update_virtual_size()
+        self.canvas.Refresh()
 
     def _reset_image_size(self, shape):
         shape.ResetSize()

@@ -328,8 +328,15 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
 
         if self._pen:
             dc.SetPen(self._pen)
+        else:
+            # Do not inherit whatever the previous shape left on the dc: the
+            # labels below set a transparent pen, and the dashed-pen arrow line
+            # would otherwise make later lines invisible/dashed.
+            dc.SetPen(get_black_foreground_pen())
         if self._brush:
             dc.SetBrush(self._brush)
+        else:
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
 
         """
         https://discuss.wxpython.org/t/float-values-no-longer-accepted-in-wxpython-4-1-2a1-dev5259/35731
@@ -907,6 +914,7 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             obstacles,
             spread=self._lane_offset(),
             prefer_curve=self.autoRoute == "curved",
+            start_axis=self._endpoint_axis(start, self._from),
         )
         if len(points) != len(self._lineControlPoints):
             self.MakeLineControlPoints(len(points))
@@ -916,6 +924,64 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         self.SetSpline(style == "curved")
         self._sync_xy_from_control_points()
         return style
+
+    def SetRouteMode(self, mode):
+        """Set how the edge is drawn: ``"straight"``, ``"avoid"`` or ``"curved"``.
+
+        ``straight`` collapses back to an attached two-point line (any manual
+        bend is dropped); ``avoid`` bends only when a box is in the way;
+        ``curved`` always bows into a spline.
+        """
+        if mode not in ("straight", "avoid", "curved"):
+            raise ValueError(f"Unknown route mode: {mode!r}")
+        self.autoRoute = {"straight": False, "avoid": True, "curved": "curved"}[mode]
+        if self.autoRoute:
+            self.UpdateRoute()
+        else:
+            self.ResetRoute()
+        canvas = self.GetCanvas()
+        if canvas is not None:
+            canvas.Refresh()
+
+    def GetRouteMode(self):
+        """Return the current routing mode (see :meth:`SetRouteMode`)."""
+        if self.autoRoute == "curved":
+            return "curved"
+        return "avoid" if self.autoRoute else "straight"
+
+    def ResetRoute(self):
+        """Collapse the edge to a straight, attached two-point line."""
+        if not self._lineControlPoints:
+            return
+        if len(self._lineControlPoints) > 2:
+            start = (self._lineControlPoints[0][0], self._lineControlPoints[0][1])
+            end = (self._lineControlPoints[-1][0], self._lineControlPoints[-1][1])
+            self.MakeLineControlPoints(2)
+            self._lineControlPoints[0][0], self._lineControlPoints[0][1] = start
+            self._lineControlPoints[1][0], self._lineControlPoints[1][1] = end
+        if self._from is not None and self._to is not None:
+            ends = self.FindLineEndPoints()
+            if ends:
+                self.SetEnds(*ends)
+        self.SetSpline(False)
+        self._sync_xy_from_control_points()
+
+    @staticmethod
+    def _endpoint_axis(point, shape):
+        """Which shape side a clipped endpoint sits on: ``"h"`` or ``"v"``.
+
+        ``"h"`` means a vertical side (left/right), so the edge should leave
+        horizontally; ``"v"`` means top/bottom, so it leaves vertically.
+        """
+        if (
+            not isinstance(shape, RectangleShape)
+            or len(shape.x) != 2
+            or len(shape.y) != 2
+        ):
+            return None
+        dx = min(abs(point[0] - shape.x[0]), abs(point[0] - shape.x[1]))
+        dy = min(abs(point[1] - shape.y[0]), abs(point[1] - shape.y[1]))
+        return "h" if dx <= dy else "v"
 
     def _lane_offset(self, spacing=14.0):
         """Sideways offset for parallel edges between the same two shapes."""

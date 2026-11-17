@@ -117,6 +117,24 @@ def test_clicking_a_label_selects_the_line(wx_app):
     frame.Destroy()
 
 
+def test_dashed_edge_does_not_leak_its_pen_into_the_next_line(wx_app):
+    """Labels set a transparent pen; the next unpenned line must still draw."""
+    frame, canvas = _make_canvas(wx_app)
+    _line(canvas, start=(20, 200), end=(380, 200))
+    dashed = wxdiagram.LineShape()
+    dashed.MakeLineControlPoints(2)
+    dashed.SetEnds(20, 120, 380, 120)
+    dashed.SetPen(wx.Pen(wx.BLACK, 1, wx.PENSTYLE_LONG_DASH))
+    dashed.AddText("dashed")
+    canvas.AddShape(dashed)  # drawn after `later` in Redraw order
+
+    image = _render(canvas)
+
+    assert _has_dark_pixels(image, 180, 198, 220, 203)  # undecorated line visible
+    assert _has_dark_pixels(image, 180, 118, 220, 123)  # dashed line visible
+    frame.Destroy()
+
+
 def test_no_label_no_hit_outside_the_line(wx_app):
     frame, canvas = _make_canvas(wx_app)
     line = _line(canvas)

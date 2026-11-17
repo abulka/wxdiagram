@@ -87,6 +87,7 @@ def route_edge(
     bend=ROUTE_BEND,
     spread=0.0,
     prefer_curve=False,
+    start_axis=None,
 ):
     """Route an edge from ``p1`` to ``p2`` avoiding ``obstacles``.
 
@@ -159,18 +160,31 @@ def route_edge(
             ):
                 return spread_points([p1, on_curve, p2], "curved"), "curved"
 
-    # Orthogonal fallback: an L-ish route through a clear lane.
-    horizontal = abs(dx) >= abs(dy)
-    for distance in (bend, bend * 2.0, bend * 3.0, bend * 4.0):
-        for sign in (1.0, -1.0):
-            if horizontal:
-                lane_y = mid[1] + distance * sign
-                points = [p1, (p1[0], lane_y), (p2[0], lane_y), p2]
-            else:
-                lane_x = mid[0] + distance * sign
-                points = [p1, (lane_x, p1[1]), (lane_x, p2[1]), p2]
-            if _polyline_clear(points, obstacles, padding):
-                return spread_points(points, "orthogonal"), "orthogonal"
+    # Orthogonal fallback: an L-ish route through a clear lane.  The lane runs
+    # across the edge; ``start_axis`` is the normal of the start attachment
+    # ("h" = leaves a vertical side), so the edge leaves along the side normal
+    # instead of cutting across the shape edge.  If no lane of that orientation
+    # clears, try the other one before giving up.
+    preferred_horizontal = abs(dx) >= abs(dy)
+    if start_axis == "h":
+        preferred_horizontal = False
+    elif start_axis == "v":
+        preferred_horizontal = True
+    orientations = [preferred_horizontal]
+    if start_axis in ("h", "v"):
+        orientations.append(not preferred_horizontal)
+
+    for lane_is_horizontal in orientations:
+        for distance in (bend, bend * 2.0, bend * 3.0, bend * 4.0):
+            for sign in (1.0, -1.0):
+                if lane_is_horizontal:
+                    lane_y = mid[1] + distance * sign
+                    points = [p1, (p1[0], lane_y), (p2[0], lane_y), p2]
+                else:
+                    lane_x = mid[0] + distance * sign
+                    points = [p1, (lane_x, p1[1]), (lane_x, p2[1]), p2]
+                if _polyline_clear(points, obstacles, padding):
+                    return spread_points(points, "orthogonal"), "orthogonal"
 
     return spread_points([p1, p2], "straight"), "straight"
 

@@ -57,6 +57,9 @@ line = canvas.join_shapes(a, b)
 line.autoRoute = True        # avoid obstacles (straight when clear)
 line.autoRoute = "curved"    # always bow the edge (free bezier)
 line.UpdateRoute()           # "straight", "curved" or "orthogonal"
+
+line.SetRouteMode("straight")  # or "avoid" / "curved" at runtime
+line.GetRouteMode()
 ```
 
 `route_edge(p1, p2, obstacle_rects)` (also `wxdiagram.route_edge`) is a pure

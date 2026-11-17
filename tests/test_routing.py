@@ -167,6 +167,41 @@ def test_autoroute_survives_repeated_link_updates(wx_app):
     frame.Destroy()
 
 
+def test_orthogonal_route_leaves_along_the_start_side_normal():
+    # A tall wall blocks straight and curved routes; the only clear lanes are
+    # horizontal, so the start-axis preference falls back gracefully.
+    obstacle = (80, -150, 120, 150)
+
+    vertical, style = route_edge((0, 0), (200, 0), [obstacle], start_axis="v")
+    assert style == "orthogonal"
+    assert vertical[1][0] == pytest.approx(0.0)  # first segment is vertical
+
+    horizontal, style = route_edge((0, 0), (200, 0), [obstacle], start_axis="h")
+    assert style == "orthogonal"  # preferred lanes blocked, fallback used
+
+
+def test_route_mode_round_trip(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    a = _block(0, 0, 80, 60)
+    b = _block(320, 0, 400, 60)
+    canvas.AddShape(a)
+    canvas.AddShape(b)
+    line = canvas.join_shapes(a, b)
+    assert line.GetRouteMode() == "straight"
+
+    line.SetRouteMode("curved")
+    assert line.GetRouteMode() == "curved"
+    assert line.IsSpline()
+    assert len(line._lineControlPoints) == 3
+
+    line.SetRouteMode("straight")
+    assert line.GetRouteMode() == "straight"
+    assert not line.IsSpline()
+    assert len(line._lineControlPoints) == 2
+    assert line._lineControlPoints[0][1] == pytest.approx(30.0)
+    frame.Destroy()
+
+
 def test_parallel_edges_are_spread_apart(wx_app):
     frame, canvas = _make_canvas(wx_app)
     a = _block(0, 0, 80, 60)

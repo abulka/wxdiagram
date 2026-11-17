@@ -86,9 +86,18 @@ pynsource canvas needs, without pulling any application code into the library.
   `wxdiagram.route_edge`) and `LineShape.autoRoute` pick a straight segment
   when it is clear, a deflected spline when that dodges unrelated boxes, and an
   orthogonal lane as a last resort.  `autoRoute = "curved"` draws a gentle
-  bezier even when the path is clear (the usual UML look); the demo uses it for
-  its connections.  Parallel edges between the same two shapes are spread into
-  separate lanes.  `False` (default) keeps existing diagrams straight.
+  bezier even when the path is clear (the usual UML look); the demo uses a mix
+  of straight and curved edges.  Parallel edges between the same two shapes are
+  spread into separate lanes.  `False` (default) keeps existing diagrams
+  straight.
+- `LineShape.SetRouteMode("straight" | "avoid" | "curved")` /
+  `GetRouteMode()` switch an edge's style at runtime; the demo's right-click
+  menu does this per edge.
+- Orthogonal routes leave along the start side's normal (so an edge on the
+  left/right of a box does not cut across the side edge) and fall back to the
+  other lane orientation when boxes block it.
+- Fixed a pen leak: an edge with a label (or a dashed pen) left a transparent
+  or dashed pen on the dc, which made later edges invisible or dashed.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit
