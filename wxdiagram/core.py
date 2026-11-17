@@ -3422,6 +3422,11 @@ class EllipseShape(Shape):
 
     def draw(self, dc):
         """The draw handler."""
+        # Set the pen/brush from this shape first: draw() is called on a shared
+        # dc in z-order, so relying on inherited state made the fill depend on
+        # whatever was drawn before it.
+        Shape.draw(self, dc)
+
         # if self._shadowMode != SHADOW_NONE:
         #     if self._shadowBrush:
         #         dc.SetBrush(self._shadowBrush)

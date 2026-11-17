@@ -116,6 +116,9 @@ pynsource canvas needs, without pulling any application code into the library.
   children proportionally with the frame, and constraints are re-evaluated.
 - `PolygonShape.HitTest` uses point-in-polygon, so the interior of a polygon is
   clickable instead of only its outline.
+- `EllipseShape.draw()` now sets its own pen/brush: it used to inherit the
+  previous shape's brush on the shared dc, so an ellipse's fill changed colour
+  depending on draw order (e.g. after clicking another shape changed z-order).
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit
