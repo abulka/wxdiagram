@@ -19,6 +19,11 @@ pynsource canvas needs, without pulling any application code into the library.
 
 ### Changed
 
+- Wheel scrolling is calibrated to `WHEEL_SCROLL_PIXELS` (20px) per notch and
+  accumulates fractional trackpad deltas, so macOS/trackpad scrolling is smooth
+  instead of jumping by several lines per event.
+- Drag-to-pan ignores the first `PAN_START_THRESHOLD` (3px) of movement, so a
+  click with a small hand tremor does not drag the canvas.
 - `ShapeCanvas._shapes_bounds()` now delegates to `getContentBounds()` and keeps
   the cache in one place.
 - `Shape.Move` docstring clarifies that it takes the shape's centre; use

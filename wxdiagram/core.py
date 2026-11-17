@@ -1168,7 +1168,9 @@ class ShapeCanvas(ScrolledWindow):
     #: bounds margin (px) added to the virtual canvas size
     CANVAS_MARGIN = 20
     #: pixels scrolled per wheel notch (wx already reports the OS scroll direction)
-    WHEEL_SCROLL_PIXELS = 30
+    WHEEL_SCROLL_PIXELS = 20
+    #: pixels of movement before a canvas drag becomes a pan
+    PAN_START_THRESHOLD = 3
 
     def __init__(self, parent, id=-1, pos=(-1, -1), size=(-1, -1), style=0, name=""):
         ScrolledWindow.__init__(self, parent, id, pos, size, style, name)
@@ -1180,6 +1182,7 @@ class ShapeCanvas(ScrolledWindow):
         self._hover_shape = None  # shape whose ports are shown as drag targets
         self.scalex = 1.0
         self.scaley = 1.0
+        self._scroll_remainder = 0.0  # fractional wheel scrolling for trackpads
         self.defaultKeyBindings = True
         #: automatically recalculate the virtual size after shapes change
         self.autoVirtualSize = True
@@ -1810,9 +1813,12 @@ class ShapeCanvas(ScrolledWindow):
                 self.ZoomOut(self.ZOOM_WHEEL_STEP, anchor=position)
             return
 
-        # plain wheel: scroll (the 1px scroll rate makes the default scrolling unusable)
-        lines = event.GetLinesPerAction() or 3
-        amount = int(rotation * lines * self.WHEEL_SCROLL_PIXELS)
+        # Plain wheel: scroll.  Accumulate fractional rotation so high-resolution
+        # trackpad events move smoothly instead of being truncated to zero, and do
+        # not multiply by GetLinesPerAction() - that made mac trackpads too fast.
+        self._scroll_remainder += rotation * self.WHEEL_SCROLL_PIXELS
+        amount = int(self._scroll_remainder)
+        self._scroll_remainder -= amount
         sx, sy = self.GetViewStart()
         if (
             getattr(event, "GetWheelAxis", lambda: wx.MOUSE_WHEEL_VERTICAL)()
@@ -1833,6 +1839,8 @@ class ShapeCanvas(ScrolledWindow):
 
     def _pan_begin(self, event):
         self._panning = True
+        self._pan_pending = True
+        self._pan_start = event.GetPosition()
         self._pan_last = event.GetPosition()
         self.CaptureMouse()
         self.SetCursor(wx.Cursor(wx.CURSOR_HAND))
@@ -1840,13 +1848,25 @@ class ShapeCanvas(ScrolledWindow):
     def _pan_end(self):
         if getattr(self, "_panning", False):
             self._panning = False
+            self._pan_pending = False
             if self.HasCapture():
                 self.ReleaseMouse()
             self.SetCursor(wx.NullCursor)
 
     def _pan_move(self, event):
-        delta = event.GetPosition() - self._pan_last
-        self._pan_last = event.GetPosition()
+        position = event.GetPosition()
+        if getattr(self, "_pan_pending", False):
+            # Ignore the first couple of pixels so a click with a tiny hand
+            # tremor does not drag the canvas.
+            if abs(position.x - self._pan_start.x) < self.PAN_START_THRESHOLD and (
+                abs(position.y - self._pan_start.y) < self.PAN_START_THRESHOLD
+            ):
+                return
+            self._pan_pending = False
+            self._pan_last = position
+            return
+        delta = position - self._pan_last
+        self._pan_last = position
         sx, sy = self.GetViewStart()
         self.Scroll(sx - delta.x, sy - delta.y)
 

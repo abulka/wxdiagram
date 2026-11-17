@@ -8,6 +8,8 @@ See the repository `CHANGELOG.md` for the authoritative history.
 - Overridable `ShapeCanvas.getContentBounds()` for zoom-to-fit.
 - Documented `autoVirtualSize` / `zoomInputEnabled` opt-outs.
 - pynsource integration contract tests.
+- Smoother wheel scrolling (20px/notch with fractional trackpad accumulation).
+- Drag-to-pan starts after a 3px threshold.
 
 ## 0.1.0 — 2026-11-16
 

@@ -303,9 +303,50 @@ def test_drag_empty_canvas_pans(wx_app):
 
     before = canvas.GetViewStart()
     canvas.OnLeftDown(evt(wx.wxEVT_LEFT_DOWN, (600, 500), down=True))
+    # first movement crosses the 3px threshold, the second actually pans
+    canvas.OnMotion(evt(wx.wxEVT_MOTION, (596, 497), down=True))
     canvas.OnMotion(evt(wx.wxEVT_MOTION, (560, 470), down=True))
     canvas.OnLeftUp(evt(wx.wxEVT_LEFT_UP, (560, 470)))
     after = canvas.GetViewStart()
 
     assert after != before
+    frame.Destroy()
+
+
+def test_tiny_drag_does_not_pan(wx_app):
+    """A click with a small hand tremor should not drag the canvas."""
+    frame, canvas = _make_canvas(wx_app)
+    canvas.AddShape(wxdiagram.RectangleShape(0, 0, 200, 200))
+    canvas.SetScrollbars(1, 1, 4000, 4000, 500, 400)
+    wx.Yield()
+
+    def evt(wx_type, position, down=False):
+        e = wx.MouseEvent(wx_type)
+        e.SetPosition(wx.Point(*position))
+        e.SetX(position[0])
+        e.SetY(position[1])
+        e.SetEventObject(canvas)
+        if down:
+            e.SetLeftDown(True)
+        return e
+
+    before = canvas.GetViewStart()
+    canvas.OnLeftDown(evt(wx.wxEVT_LEFT_DOWN, (600, 500), down=True))
+    canvas.OnMotion(evt(wx.wxEVT_MOTION, (602, 502), down=True))
+    canvas.OnLeftUp(evt(wx.wxEVT_LEFT_UP, (602, 502)))
+    assert canvas.GetViewStart() == before
+    frame.Destroy()
+
+
+def test_trackpad_fractional_scroll_accumulates(wx_app):
+    """Small trackpad deltas accumulate instead of being truncated to zero."""
+    frame, canvas = _make_canvas(wx_app)
+    _add_big_content(canvas)
+    canvas.SetScrollbars(1, 1, 4000, 4000, 500, 400)
+    wx.Yield()
+
+    canvas.OnMouseWheel(_wheel_event(wx.Point(100, 100), -60))
+    assert canvas.GetViewStart()[1] == 410  # half a notch -> 10px
+    canvas.OnMouseWheel(_wheel_event(wx.Point(100, 100), -60))
+    assert canvas.GetViewStart()[1] == 420
     frame.Destroy()
