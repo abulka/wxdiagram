@@ -2,6 +2,8 @@
 
 import wx
 
+import pytest
+
 import wxdiagram
 
 
@@ -226,6 +228,118 @@ def test_zoom_out_never_loses_content(wx_app):
     # the content origin must still be reachable on screen
     assert 0 <= x < client_w
     assert 0 <= y < client_h
+
+
+def test_negative_coordinates_extend_the_scroll_range(wx_app):
+    """Content above/left of (0, 0) must be reachable, not clipped away."""
+    frame, canvas = _make_canvas(wx_app)
+    canvas.AddShape(wxdiagram.RectangleShape(-600, -400, -200, -100))
+
+    min_x, min_y, max_x, max_y = canvas._content_rect()
+    assert (min_x, min_y) == (-600, -400)
+    assert (max_x, max_y) == (0, 0)
+
+    canvas.update_virtual_size()
+    virtual_w, virtual_h = canvas.GetVirtualSize()
+    assert virtual_w >= 600 + canvas.CANVAS_MARGIN
+    assert virtual_h >= 400 + canvas.CANVAS_MARGIN
+
+    canvas.Scroll(0, 0)
+    assert canvas.diagram_point_to_client_coords(-600, -400) == (0, 0)
+    frame.Destroy()
+
+
+def test_negative_origin_mapping_round_trip(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    canvas.AddShape(wxdiagram.RectangleShape(-500, -300, 100, 200))
+    canvas.update_virtual_size()
+    for scale in (0.5, 1.0, 2.0):
+        canvas.scalex = canvas.scaley = scale
+        canvas.Scroll(10, 5)
+        for point in [(-500, -300), (-120, 40), (100, 200)]:
+            client = canvas.diagram_point_to_client_coords(*point)
+            back = canvas.client_pos_in_diagram_coords(*client)
+            assert abs(back[0] - point[0]) < 1e-6
+            assert abs(back[1] - point[1]) < 1e-6
+    frame.Destroy()
+
+
+def test_clicking_negative_content_selects_it(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.RectangleShape(-400, -300, -100, -50)
+    canvas.AddShape(shape)
+    canvas.Scroll(0, 0)
+
+    client = canvas.diagram_point_to_client_coords(-250, -175)
+
+    def evt(wx_type, position):
+        e = wx.MouseEvent(wx_type)
+        e.SetPosition(wx.Point(int(position[0]), int(position[1])))
+        e.SetX(int(position[0]))
+        e.SetY(int(position[1]))
+        e.SetEventObject(canvas)
+        return e
+
+    canvas.OnLeftDown(evt(wx.wxEVT_LEFT_DOWN, client))
+    assert shape in canvas.getSelectedShapes()
+    canvas.OnLeftUp(evt(wx.wxEVT_LEFT_UP, client))
+    frame.Destroy()
+
+
+def test_paint_offsets_negative_content(wx_app):
+    """The paint translation matches the coordinate mapping."""
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.RectangleShape(-100, -80, -40, -20)
+    shape.SetBrush(wx.Brush("RED"))
+    canvas.AddShape(shape)
+    canvas.Scroll(0, 0)
+
+    bitmap = wx.Bitmap(400, 300)
+    dc = wx.MemoryDC(bitmap)
+    dc.SetBackground(wx.Brush("WHITE"))
+    dc.Clear()
+    dc.SetUserScale(canvas.scalex, canvas.scaley)
+    canvas._apply_content_origin(dc)
+    canvas.Redraw(dc)
+    dc.SelectObject(wx.NullBitmap)
+
+    image = bitmap.ConvertToImage()
+    # (-100, -80) is the content origin, so it lands at client (0, 0)
+    assert int(canvas.diagram_point_to_client_coords(-100, -80)[0]) == 0
+    assert image.GetRed(30, 30) > 200 and image.GetBlue(30, 30) < 80
+    assert image.GetRed(70, 30) > 200 and image.GetBlue(70, 30) > 200  # untouched
+    frame.Destroy()
+
+
+def test_dragging_a_shape_negative_keeps_it_reachable(wx_app):
+    """Dragging content past (0, 0) must leave it reachable, not lost."""
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.RectangleShape(100, 100, 300, 250)
+    canvas.AddShape(shape)
+    canvas.update_virtual_size()
+    canvas.Scroll(0, 0)
+
+    def evt(wx_type, position, down=False):
+        e = wx.MouseEvent(wx_type)
+        e.SetPosition(wx.Point(int(position[0]), int(position[1])))
+        e.SetX(int(position[0]))
+        e.SetY(int(position[1]))
+        e.SetEventObject(canvas)
+        if down:
+            e.SetLeftDown(True)
+        return e
+
+    canvas.OnLeftDown(evt(wx.wxEVT_LEFT_DOWN, (200, 175), down=True))
+    canvas.OnMotion(evt(wx.wxEVT_MOTION, (0, 175), down=True))
+    canvas.OnLeftUp(evt(wx.wxEVT_LEFT_UP, (0, 175)))
+
+    assert shape.x[0] == pytest.approx(-100)
+    min_x, min_y = canvas._content_rect()[:2]
+    assert min_x == pytest.approx(-100)
+    # The new content origin maps to the visible top-left corner.
+    left, _ = canvas.diagram_point_to_client_coords(shape.x[0], shape.y[0])
+    assert 0 <= left < 1
+    frame.Destroy()
 
 
 def test_auto_virtual_size_can_be_disabled(wx_app):

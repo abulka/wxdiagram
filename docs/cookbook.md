@@ -40,6 +40,16 @@ class UmlCanvas(wxdiagram.ShapeCanvas):
         return self.box_bounds()
 ```
 
+The scrollable area starts at `getContentOrigin()`, which by default is the
+minimum x/y over all shapes (and composite children). That means content at
+negative diagram coordinates is still reachable. Override it alongside
+`getContentBounds()` if your canvas navigates a different region:
+
+```python
+    def getContentOrigin(self):
+        return self.box_origin()      # (min_x, min_y)
+```
+
 ## Move by top-left coordinates
 
 `Move` takes the shape centre. Layouts and saved positions usually use the

@@ -16,6 +16,16 @@ Supersedes: `ogl2/PLAN-2026.md` (keep that file as history; add a
   pinch, drag-to-pan, virtual size); its `CanvasResizer` duplicate is deleted.
 - Editing pack landed: marquee selection, nudge, duplicate, z-order and
   snapshot undo/redo (with a pynsource graph-aware snapshot provider).
+- Resize pack: bitmap resizing keeps float geometry so it tracks the mouse at
+  any zoom; handles are positioned when created (no pre-paint hit-test gap);
+  corner drags clamp instead of inverting; resize is **proportional by default
+  with Shift for free aspect** (matches this plan; the earlier build had it
+  reversed).
+- Scroll area now starts at the content origin: `getContentOrigin()` returns
+  the minimum x/y (defaults to all shapes and composite children), so content
+  at negative coordinates is scrollable and `ZoomToFit` frames it.  Pynsource
+  includes imported images in `getContentBounds()`, fixing unreachable image
+  edges after a large resize.
 - Decision update: pynsource keeps **one** canvas (`wxdiagram`), removes the
   vendored `src/ogl` and the `ogl2` dependency, and makes the diagram free.
   Pro remains only for ALSM module visualisation. The release stays on `1.x`
@@ -253,8 +263,8 @@ Acceptance:
 Source reference: `/Users/andy/Devel/shape-studio/src/ui/canvas.rs`,
 `src/shape.rs`, `src/app.rs`.
 
-- 8 resize handles; proportional resize by default; Shift = free;
-  Alt = resize from centre.
+- Resize handles now (two corners): proportional resize by default, Shift =
+  free aspect; 8 handles and Alt = resize from centre still to do.
 - Marquee selection; Shift/Ctrl add; Esc clear; arrow-key nudge.
 - Grid + alignment guides.
 - Undo/redo (snapshot or command pattern).

@@ -15,7 +15,8 @@ See `PLAN.md` in the repository for the full, maintained plan.
 
 ## 0.2 — interaction and pynsource integration
 
-- 8-way resize handles, proportional resize
+- 8-way resize handles
+- ✅ proportional resize (Shift = free aspect)
 - ✅ marquee selection, Shift/Ctrl add, Esc clear, arrow-key nudge
 - grid and alignment guides
 - ✅ undo/redo, z-order, duplicate
@@ -23,6 +24,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - mouse drag tolerance
 - ✅ `Shape.MoveTo` for top-left layout coordinates
 - ✅ overridable `getContentBounds()` for zoom-to-fit
+- ✅ `getContentOrigin()` so content at negative coordinates stays scrollable
 - ✅ `autoVirtualSize` / `zoomInputEnabled` opt-outs for apps that own scrolling
 - ✅ pynsource delegates its viewport (zoom, pinch, pan, virtual size) to this library
 

@@ -1304,7 +1304,7 @@ class ShapeCanvas(ScrolledWindow):
         # ANDY ADDED ###
         self._dragState = NoDragging
         self._draggedShape = None
-        self._drag_shift = False
+        self._drag_free_aspect = False
         ####
 
     def _bounds_changed(self):
@@ -1462,10 +1462,25 @@ class ShapeCanvas(ScrolledWindow):
         dc = PaintDC(self)
         self.PrepareDC(dc)
         dc.SetUserScale(self.scalex, self.scaley)
+        self._apply_content_origin(dc)
         # for item in self.diagram.shapes + self.nodes:
         #     item.draw(dc)
         self.Redraw(dc)  # does the above two lines
         self._draw_marquee(dc)
+
+    def _apply_content_origin(self, dc):
+        """Shift drawing so content at negative coordinates stays on canvas.
+
+        Scroll offsets cannot go negative, so the scroll origin is the content's
+        top-left corner (``getContentOrigin``) rather than diagram (0, 0).
+        """
+        min_x, min_y = self._content_rect()[:2]
+        if min_x or min_y:
+            scroll_x, scroll_y = self._scroll_offset_pixels()
+            dc.SetDeviceOrigin(
+                -int(scroll_x + min_x * self.scalex),
+                -int(scroll_y + min_y * self.scaley),
+            )
 
     def OnRightDown(self, event):
         # ANDY
@@ -2004,9 +2019,12 @@ class ShapeCanvas(ScrolledWindow):
             self._pan_end()
             self.Refresh()
             return
-        self._bounds_changed()
         try:
+            # Hit-test before refreshing the bounds: moving content to negative
+            # coordinates changes the scroll origin, and re-deriving it first
+            # would move the mapping out from under this mouse-up.
             shape = self.getCurrentShape(event)
+            self._bounds_changed()
             self._dump_drag_info("Master OnLeftUp", shape)
             if shape:
                 if shape._canvas is None:
@@ -2065,8 +2083,9 @@ class ShapeCanvas(ScrolledWindow):
         if not event.Dragging():
             self._update_hover_ports(event)
             return
-        # Resize nodes read this to constrain corner drags to the aspect ratio.
-        self._drag_shift = bool(getattr(event, "ShiftDown", lambda: False)())
+        # Corner resizes are proportional by default; Shift frees the aspect
+        # ratio.  Resize nodes read this while dragging.
+        self._drag_free_aspect = bool(getattr(event, "ShiftDown", lambda: False)())
         point = self.getEventCoordinates(event)
         x = point[0] - self.currentPoint[0]
         y = point[1] - self.currentPoint[1]
@@ -2120,6 +2139,9 @@ class ShapeCanvas(ScrolledWindow):
         # through this canvas, so make sure they all know their canvas.
         for shape in getattr(diagram, "shapes", []) or []:
             self._attach_canvas(shape)
+        # A new diagram can have a different content origin (negative
+        # coordinates); do not navigate last diagram's rectangle.
+        self.invalidate_bounds_cache()
 
     def getCurrentShape(self, event):
         # get coordinate of click in our coordinate system
@@ -2142,9 +2164,10 @@ class ShapeCanvas(ScrolledWindow):
     def getEventCoordinates(self, event):
         originX, originY = self.GetViewStart()
         unitX, unitY = self.GetScrollPixelsPerUnit()
+        min_x, min_y = self._content_rect()[:2]
         return [
-            (event.GetX() + (originX * unitX)) / self.scalex,
-            (event.GetY() + (originY * unitY)) / self.scaley,
+            (event.GetX() + (originX * unitX)) / self.scalex + min_x,
+            (event.GetY() + (originY * unitY)) / self.scaley + min_y,
         ]
 
     # ----------------------------------------------------------------------
@@ -2171,11 +2194,13 @@ class ShapeCanvas(ScrolledWindow):
 
     def client_pos_in_diagram_coords(self, x, y):
         scroll_x, scroll_y = self._scroll_offset_pixels()
-        return (x + scroll_x) / self.scalex, (y + scroll_y) / self.scaley
+        min_x, min_y = self._content_rect()[:2]
+        return (x + scroll_x) / self.scalex + min_x, (y + scroll_y) / self.scaley + min_y
 
     def diagram_point_to_client_coords(self, x, y):
         scroll_x, scroll_y = self._scroll_offset_pixels()
-        return x * self.scalex - scroll_x, y * self.scaley - scroll_y
+        min_x, min_y = self._content_rect()[:2]
+        return (x - min_x) * self.scalex - scroll_x, (y - min_y) * self.scaley - scroll_y
 
     def invalidate_bounds_cache(self):
         self._bounds_cache = None
@@ -2203,12 +2228,43 @@ class ShapeCanvas(ScrolledWindow):
 
         return max_x, max_y
 
+    def getContentOrigin(self):
+        """Return ``(min_x, min_y)`` for the content the canvas should navigate.
+
+        This is the top-left corner of the scrollable area.  By default it
+        covers every top-level shape and its composite children, so content can
+        extend to negative diagram coordinates and still be reached by
+        scrolling.  Subclasses overriding :meth:`getContentBounds` may override
+        this too.
+        """
+        min_x = min_y = 0
+
+        def visit(shape):
+            nonlocal min_x, min_y
+            if shape.x and shape.y:
+                min_x = min(min_x, min(shape.x))
+                min_y = min(min_y, min(shape.y))
+            for child in getattr(shape, "_compositeChildren", []) or []:
+                visit(child)
+
+        if self.diagram:
+            for shape in getattr(self.diagram, "shapes", []):
+                visit(shape)
+
+        return min_x, min_y
+
+    def _content_rect(self):
+        """Return cached ``(min_x, min_y, max_x, max_y)`` for all content."""
+        if self._bounds_cache is None:
+            min_x, min_y = self.getContentOrigin()
+            max_x, max_y = self.getContentBounds()
+            # Never let a stale/inconsistent override invert the rectangle.
+            self._bounds_cache = (min(min_x, max_x), min(min_y, max_y), max_x, max_y)
+        return self._bounds_cache
+
     def _shapes_bounds(self):
         """Return cached ``(max_x, max_y)`` content bounds."""
-        if self._bounds_cache is not None:
-            return self._bounds_cache
-        self._bounds_cache = self.getContentBounds()
-        return self._bounds_cache
+        return self._content_rect()[2:]
 
     def _zoom_anchor_point(self, anchor):
         # A concrete client point (e.g. the mouse wheel event position) wins.
@@ -2220,12 +2276,8 @@ class ShapeCanvas(ScrolledWindow):
                 shape = selected[0]
                 return shape.GetX(), shape.GetY()
         if anchor == self.ZOOM_ANCHOR_CENTER:
-            scroll_x, scroll_y = self._scroll_offset_pixels()
             client_w, client_h = self.GetClientSize()
-            return (
-                (scroll_x + client_w / 2) / self.scalex,
-                (scroll_y + client_h / 2) / self.scaley,
-            )
+            return self.client_pos_in_diagram_coords(client_w / 2, client_h / 2)
         return self.mouse_pos_in_client_coords()
 
     def _apply_scrollbars(self, offset_x=0, offset_y=0):
@@ -2233,7 +2285,7 @@ class ShapeCanvas(ScrolledWindow):
             return
         self._in_resize = True
         try:
-            bounds_x, bounds_y = self._shapes_bounds()
+            min_x, min_y, max_x, max_y = self._content_rect()
             client_w, client_h = self.GetClientSize()
             unit_x, unit_y = self.GetScrollPixelsPerUnit()
             unit_x = unit_x or 1
@@ -2243,8 +2295,10 @@ class ShapeCanvas(ScrolledWindow):
             # The virtual size covers the shapes plus a margin, and the scroll
             # position is clamped to it.  This is what stops zooming/panning
             # from wandering into an empty void (and "losing everything").
-            content_w = int(bounds_x * self.scalex) + self.CANVAS_MARGIN
-            content_h = int(bounds_y * self.scaley) + self.CANVAS_MARGIN
+            # Content may extend into negative diagram coordinates, so measure
+            # the extent rather than assuming the origin is (0, 0).
+            content_w = int((max_x - min_x) * self.scalex) + self.CANVAS_MARGIN
+            content_h = int((max_y - min_y) * self.scaley) + self.CANVAS_MARGIN
             want_w = max(client_w, content_w)
             want_h = max(client_h, content_h)
             max_sx = max(0, want_w - client_w)
@@ -2283,8 +2337,11 @@ class ShapeCanvas(ScrolledWindow):
         anchor_x, anchor_y = self._zoom_anchor_point(anchor)
         self.scalex = self.scaley = new_scale
 
-        offset_x = anchor_x * delta
-        offset_y = anchor_y * delta
+        # Keep the anchor under the same screen position while zooming.  Its
+        # pixel position is measured from the content origin, not diagram (0,0).
+        min_x, min_y = self._content_rect()[:2]
+        offset_x = (anchor_x - min_x) * delta
+        offset_y = (anchor_y - min_y) * delta
         self._apply_scrollbars(offset_x, offset_y)
         self.invalidate_bounds_cache()
         self.Refresh()
@@ -2307,7 +2364,8 @@ class ShapeCanvas(ScrolledWindow):
 
     def ZoomToFit(self, margin=None):
         """Zoom so all shapes fit inside the viewport."""
-        bounds_x, bounds_y = self._shapes_bounds()
+        min_x, min_y, max_x, max_y = self._content_rect()
+        bounds_x, bounds_y = max_x - min_x, max_y - min_y
         if bounds_x <= 0 or bounds_y <= 0:
             self.ZoomReset()
             return
@@ -2324,8 +2382,9 @@ class ShapeCanvas(ScrolledWindow):
         """Scroll so the diagram position is centred in the viewport."""
         client_w, client_h = self.GetClientSize()
         unit_x, unit_y = self.GetScrollPixelsPerUnit()
-        target_x = int(diagram_x * self.scalex - client_w / 2)
-        target_y = int(diagram_y * self.scaley - client_h / 2)
+        min_x, min_y = self._content_rect()[:2]
+        target_x = int((diagram_x - min_x) * self.scalex - client_w / 2)
+        target_y = int((diagram_y - min_y) * self.scaley - client_h / 2)
         self.Scroll(int(target_x / (unit_x or 1)), int(target_y / (unit_y or 1)))
 
     def update_virtual_size(self):
@@ -3252,13 +3311,14 @@ class ONode(ConnectableNode):
         PointShape.draw(self, dc)
 
 
-def resize_rect_from_handle(shape, index, dx, dy, shift=False):
+def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
     """Resize a two-point rectangle by dragging the corner at ``index``.
 
     The corner opposite the dragged one stays fixed, the size is clamped to one
-    unit instead of inverting, and ``shift`` preserves the current aspect ratio
-    (driven by whichever axis moved further).  Used by ``ResizeableNode`` for
-    rectangle shapes and by ``ResizableBitmapShape.move_handle``.
+    unit instead of inverting, and the resize is proportional unless
+    ``free_aspect`` is set (driven by whichever axis moved further).  Used by
+    ``ResizeableNode`` for rectangle shapes and by
+    ``ResizableBitmapShape.move_handle``.
     """
     if len(shape.x) != 2 or len(shape.y) != 2:
         shape.x[index] += dx
@@ -3272,7 +3332,7 @@ def resize_rect_from_handle(shape, index, dx, dy, shift=False):
     width = max(1.0, old_width + sign * dx)
     height = max(1.0, old_height + sign * dy)
 
-    if shift and old_width > 0 and old_height > 0:
+    if not free_aspect and old_width > 0 and old_height > 0:
         ratio = old_width / old_height
         if abs(width - old_width) >= abs(height - old_height):
             height = max(1.0, width / ratio)
@@ -3331,12 +3391,12 @@ class ResizeableNode(Node):
         """
         # print("ResizeableNode move() self.index", self.index)
         item = self.item
-        # Shift during the drag constrains a corner resize to the shape's
-        # current aspect ratio.  OnMotion records the modifier for us.
-        shift = bool(getattr(self.cf, "_drag_shift", False))
+        # Proportional by default: Shift frees the aspect ratio.  OnMotion
+        # records the modifier for us.
+        free_aspect = bool(getattr(self.cf, "_drag_free_aspect", False))
         move_handle = getattr(item, "move_handle", None)
         if move_handle is not None:
-            if move_handle(self.index, x, y, shift=shift):
+            if move_handle(self.index, x, y, free_aspect=free_aspect):
                 # LineShape keeps its geometry in control points; it has already
                 # updated x/y from them, so do not move x/y again.
                 item.MoveLinks(dc=None)
@@ -3345,7 +3405,7 @@ class ResizeableNode(Node):
         elif isinstance(item, RectangleShape) and len(item.x) == 2 and len(item.y) == 2:
             # Corner drag: keep the opposite corner fixed and never invert the
             # rectangle, which used to trip RectangleShape.sanity() on hit-test.
-            resize_rect_from_handle(item, self.index, x, y, shift)
+            resize_rect_from_handle(item, self.index, x, y, free_aspect)
             item.MoveLinks(dc=None)
             self._sync_to_item()
             return

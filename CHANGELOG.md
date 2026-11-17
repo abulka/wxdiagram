@@ -49,7 +49,12 @@ pynsource canvas needs, without pulling any application code into the library.
 - Rectangles and blocks behave the same way: dragging a corner past the
   opposite one clamps instead of inverting the shape (which used to raise an
   assertion on the next hit-test).
-- Shift while dragging a resize handle keeps the shape's aspect ratio.
+- Corner resizing is proportional by default; hold Shift for free
+  (non-proportional) resizing.
+- The scrollable area now starts at the content origin: `getContentOrigin()`
+  returns the minimum x/y of the shapes, so content moved or resized into
+  negative diagram coordinates stays reachable and is framed by zoom-to-fit
+  (previously anything above/left of (0, 0) was outside the scroll range).
 - Clicking a resize handle no longer clears the selection/handles, fixing
   disappearing resize indicators.
 - Demo uses the sample photograph at `examples/assets/sample-image.jpg`;

@@ -259,8 +259,8 @@ class DemoFrame(wx.Frame):
         self.CreateStatusBar()
         self.SetStatusText(
             "Drag empty = marquee | Shift/Ctrl add | Alt/Space/middle drag = pan | "
-            "Shift+corner resize = keep aspect | Ctrl+wheel zoom | Ctrl+Z undo | "
-            "Ctrl+D duplicate | Del delete"
+            "Corner resize = proportional (Shift = free) | Ctrl+wheel zoom | "
+            "Ctrl+Z undo | Ctrl+D duplicate | Del delete"
         )
 
         _populate(self.canvas)

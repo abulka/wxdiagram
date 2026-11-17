@@ -86,6 +86,7 @@ def test_canvas_extension_points():
     """Subclass hooks used by pynsource and other applications."""
     assert hasattr(wxdiagram.Shape, "MoveTo")
     assert hasattr(wxdiagram.ShapeCanvas, "getContentBounds")
+    assert hasattr(wxdiagram.ShapeCanvas, "getContentOrigin")
     for name in ["update_virtual_size", "ZoomToFit", "ZoomIn", "ZoomOut", "ZoomReset"]:
         assert hasattr(wxdiagram.ShapeCanvas, name), name
     # class-level defaults that applications tune

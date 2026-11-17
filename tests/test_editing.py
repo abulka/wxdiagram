@@ -313,6 +313,18 @@ def test_bitmap_handle_resizes_bitmap(wx_app):
     shape.SetSize(40, 30)
 
     shape.move_handle(1, 20, 10)
+    # Proportional by default: 4:3 is kept, driven by the x axis.
+    assert shape.GetBoundingBoxMin() == (60, 45)
+
+
+def test_bitmap_handle_free_aspect_follows_each_axis(wx_app):
+    image = wx.Image(40, 30)
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(image))
+    shape.x = [0, 40]
+    shape.y = [0, 30]
+
+    shape.move_handle(1, 20, 10, free_aspect=True)
     assert shape.GetBoundingBoxMin() == (60, 40)
 
 
@@ -329,7 +341,9 @@ def test_bitmap_resize_tracks_mouse_at_fractional_zoom(wx_app):
     canvas.scalex = canvas.scaley = zoom
 
     shape = wxdiagram.ResizableBitmapShape()
-    shape.SetBitmap(wx.Bitmap(wx.Image(200, 150)))
+    # Square image: the default proportional resize then matches the equal
+    # x/y mouse steps, so the handle must track the mouse exactly.
+    shape.SetBitmap(wx.Bitmap(wx.Image(200, 200)))
     shape.move_to(100, 100)
     canvas.InsertShape(shape, 0)
     canvas.select(shape)
@@ -371,7 +385,22 @@ def test_bitmap_handle_clamps_at_the_opposite_corner(wx_app):
     assert shape.HitTest(39.5, 29.5)  # must not trip RectangleShape.sanity()
 
 
-def test_shift_resize_keeps_aspect_ratio(wx_app):
+def test_resize_is_proportional_by_default(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)  # 200 x 100
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (shape.x[1] + 40, shape.y[1] + 5), down=True))
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(240)
+    assert height == pytest.approx(120)  # 2:1 kept, driven by the x axis
+    frame.Destroy()
+
+
+def test_shift_resize_allows_free_aspect(wx_app):
     frame, canvas = _make_canvas(wx_app)
     shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)  # 200 x 100
     canvas.InsertShape(shape, 0)
@@ -384,11 +413,11 @@ def test_shift_resize_keeps_aspect_ratio(wx_app):
 
     width, height = shape.GetBoundingBoxMin()
     assert width == pytest.approx(240)
-    assert height == pytest.approx(120)  # 2:1 kept, driven by the x axis
+    assert height == pytest.approx(105)  # each axis follows the mouse
     frame.Destroy()
 
 
-def test_shift_resize_keeps_bitmap_aspect_ratio(wx_app):
+def test_bitmap_resize_is_proportional_by_default(wx_app):
     frame, canvas = _make_canvas(wx_app)
     shape = wxdiagram.ResizableBitmapShape()
     shape.SetBitmap(wx.Bitmap(wx.Image(200, 100)))
@@ -397,9 +426,7 @@ def test_shift_resize_keeps_bitmap_aspect_ratio(wx_app):
     canvas.select(shape)
 
     canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
-    canvas.OnMotion(
-        _event(canvas, wx.wxEVT_MOTION, (shape.x[1] + 40, shape.y[1] + 5), down=True, shift=True)
-    )
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (shape.x[1] + 40, shape.y[1] + 5), down=True))
 
     width, height = shape.GetBoundingBoxMin()
     assert width == pytest.approx(240)

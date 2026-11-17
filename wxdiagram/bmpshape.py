@@ -151,15 +151,15 @@ class ResizableBitmapShape(BitmapShape):
         BitmapShape.SetBitmap(self, bitmap)
         self._ori_bmp = bitmap
 
-    def move_handle(self, index, dx, dy, shift=False):
+    def move_handle(self, index, dx, dy, free_aspect=False):
         """Resize from a drag handle, keeping the opposite corner fixed.
 
         Only the dragged point moves: changing the size and then re-deriving
         the far edge (as ``SetSize`` does) would re-anchor the shape at its
         top-left and quantise the drag, so the image lags behind the mouse.
-        ``shift`` keeps the current aspect ratio.
+        The resize is proportional unless ``free_aspect`` is set.
         """
-        resize_rect_from_handle(self, index, dx, dy, shift)
+        resize_rect_from_handle(self, index, dx, dy, free_aspect)
         return True
 
 

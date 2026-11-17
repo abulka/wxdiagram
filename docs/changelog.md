@@ -6,6 +6,7 @@ See the repository `CHANGELOG.md` for the authoritative history.
 
 - `Shape.MoveTo` for top-left layout coordinates (refreshes attached lines).
 - Overridable `ShapeCanvas.getContentBounds()` for zoom-to-fit.
+- `getContentOrigin()` for the scroll origin, so negative coordinates stay reachable.
 - Documented `autoVirtualSize` / `zoomInputEnabled` opt-outs.
 - pynsource integration contract tests.
 - Smoother wheel scrolling (20px/notch with fractional trackpad accumulation).
