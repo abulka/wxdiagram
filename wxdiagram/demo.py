@@ -10,10 +10,12 @@
 #   * A preloaded sample diagram: UML class boxes with connections, a composite
 #     with four children, a bitmap, a diamond, an ellipse, an arrowed line and a
 #     clean polyline, each in its own labelled section.
-#   * Add menu with every shape type.
-#   * View menu with zoom in / zoom out / zoom to fit / reset (Ctrl + / Ctrl - / Ctrl 0),
-#     or hold Ctrl and scroll the mouse wheel.
-#   * Drag on empty canvas to pan.
+#   * File, Edit, Add, Arrange and View menus - a kitchen-sink tour of the API.
+#   * Add menu with every shape type, captions, bitmaps and image files.
+#   * Edit menu: undo/redo, duplicate, delete, select all, deselect.
+#   * Arrange menu: bring to front/forward, send backward/to back.
+#   * View menu: zoom controls and a toggle for click-to-raise z-order.
+#   * Drag on empty canvas to marquee-select; Alt/Space/middle-drag pans.
 #   * Ctrl + click a Block to edit its label.
 #   * File menu: save and load the diagram as JSON.
 #   * Delete key removes the selection.  Ctrl+C / Ctrl+V copy and paste it.
@@ -230,7 +232,8 @@ class DemoFrame(wx.Frame):
         self._create_menus()
         self.CreateStatusBar()
         self.SetStatusText(
-            "Drag to pan | Ctrl+wheel or pinch to zoom | Ctrl+0 reset | Ctrl+A select all | Del delete"
+            "Drag empty = marquee | Shift/Ctrl add | Alt/Space/middle drag = pan | "
+            "Ctrl+wheel zoom | Ctrl+Z undo | Ctrl+D duplicate | Del delete"
         )
 
         _populate(self.canvas)
@@ -256,6 +259,15 @@ class DemoFrame(wx.Frame):
         self._add_item(file_menu, "&Save\tCtrl+S", self.OnSave, "Save as JSON")
         self._add_item(file_menu, "Save &As...\tCtrl+Shift+S", self.OnSave, "Save as JSON")
         self._add_item(file_menu, "E&xit\tAlt+F4", self.OnExit, "Quit")
+
+        edit_menu = self._menu("&Edit")
+        self._add_item(edit_menu, "&Undo\tCtrl+Z", lambda e: self.canvas.undo())
+        self._add_item(edit_menu, "&Redo\tCtrl+Shift+Z", lambda e: self.canvas.redo())
+        self._add_item(edit_menu, "&Duplicate\tCtrl+D", lambda e: self.canvas.duplicate_selected())
+        self._add_item(edit_menu, "&Delete\tDel", lambda e: self.canvas.delete_selected())
+        edit_menu.AppendSeparator()
+        self._add_item(edit_menu, "Select &All\tCtrl+A", self.OnSelectAll)
+        self._add_item(edit_menu, "&Deselect\tEsc", lambda e: self.canvas.deselect())
 
         add_menu = self._menu("&Add")
         self._add_item(
@@ -298,12 +310,37 @@ class DemoFrame(wx.Frame):
         )
         self._add_item(
             add_menu,
+            "&Text caption",
+            lambda e: self._add_shape(make_caption(300, 500, "A caption")),
+            "Non-interactive TextShape",
+        )
+        self._add_item(
+            add_menu,
+            "&Bitmap",
+            lambda e: self._add_shape(make_bitmap_shape(300, 300)),
+            "BitmapShape",
+        )
+        self._add_item(add_menu, "&Image from file...", self.OnAddImage, "ResizableBitmapShape")
+        self._add_item(
+            add_menu,
             "&Connect two selected\tCtrl+J",
             self.OnConnect,
             "Draw a line between the two selected shapes",
         )
 
+        arrange_menu = self._menu("&Arrange")
+        self._add_item(arrange_menu, "Bring to &Front", lambda e: self.canvas.bring_to_front())
+        self._add_item(arrange_menu, "Bring F&orward", lambda e: self.canvas.bring_forward())
+        self._add_item(arrange_menu, "Send Back&ward", lambda e: self.canvas.send_backward())
+        self._add_item(arrange_menu, "Send to &Back", lambda e: self.canvas.send_to_back())
+
         view_menu = self._menu("&View")
+        self.item_raise = view_menu.AppendCheckItem(
+            wx.ID_ANY, "Raise clicked shape", "Change z-order when a shape is clicked"
+        )
+        self.item_raise.Check(self.canvas.bringClickedShapeToFront)
+        self.Bind(wx.EVT_MENU, self.OnToggleRaiseClicked, self.item_raise)
+        view_menu.AppendSeparator()
         self._add_item(
             view_menu,
             "Zoom &In\tCtrl+=",
@@ -329,7 +366,35 @@ class DemoFrame(wx.Frame):
     def _add_shape(self, shape):
         self.canvas.InsertShape(shape, 999)
         self.canvas.deselect()
+        if getattr(shape, "marqueeSelectable", True):
+            self.canvas.select(shape)
         self.canvas.update_virtual_size()
+
+    def OnSelectAll(self, event):
+        self.canvas.deselect()
+        for shape in self.canvas.GetDiagram().shapes:
+            if getattr(shape, "marqueeSelectable", True):
+                self.canvas.select(shape)
+
+    def OnAddImage(self, event):
+        with wx.FileDialog(
+            self,
+            "Insert image",
+            wildcard="Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            shape = self.canvas.AddImage(
+                dlg.GetPath(), max_size=(500, 400), center=True, send_to_back=False
+            )
+            if shape is not None:
+                self.canvas.deselect()
+                self.canvas.select(shape)
+                self.canvas.Refresh()
+
+    def OnToggleRaiseClicked(self, event):
+        self.canvas.bringClickedShapeToFront = self.item_raise.IsChecked()
 
     def OnConnect(self, event):
         selected = self.canvas.getSelectedShapes()

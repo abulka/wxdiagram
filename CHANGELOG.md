@@ -27,6 +27,9 @@ pynsource canvas needs, without pulling any application code into the library.
 - `ResizableBitmapShape` (rescaled bitmap on resize) and
   `ShapeCanvas.AddImage(path, max_size, center, send_to_back, shape_factory)`
   for consistent image import.
+- `ShapeCanvas.delete_selected()` for one-step, undoable deletion.
+- The demo is now a kitchen-sink app: File/Edit/Add/Arrange/View menus covering
+  z-order, undo/redo, duplicate/delete, captions, bitmaps and image files.
 - `Shape.marqueeSelectable` so labels and decorations can opt out of marquee
   selection.
 

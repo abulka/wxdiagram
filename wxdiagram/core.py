@@ -1357,6 +1357,24 @@ class ShapeCanvas(ScrolledWindow):
         self.diagram.DeleteShape(shape)
         self._bounds_changed()
 
+    def delete_selected(self):
+        """Delete every selected shape as one undoable operation."""
+        shapes = list(self.getSelectedShapes())
+        if not shapes:
+            return
+        self.begin_undo()
+        try:
+            for shape in shapes:
+                try:
+                    self.diagram.DeleteShape(shape)
+                except ValueError:
+                    pass
+            self.deselect()
+            self._bounds_changed()
+        finally:
+            self.commit_undo()
+        self.Refresh()
+
     @staticmethod
     def _ctrl(event):
         # CmdDown() is Command on macOS and Control elsewhere.
@@ -1385,18 +1403,7 @@ class ShapeCanvas(ScrolledWindow):
             dy = -step if key == wx.WXK_UP else step if key == wx.WXK_DOWN else 0
             self.nudge_selected(dx, dy)
         elif key in (wx.WXK_DELETE, 127):  # DELETE
-            self.begin_undo()
-            try:
-                for s in list(self.getSelectedShapes()):
-                    try:
-                        self.diagram.DeleteShape(s)
-                    except ValueError:
-                        # already deleted (e.g. by an application-level accelerator)
-                        pass
-                self.deselect()
-                self._bounds_changed()
-            finally:
-                self.commit_undo()
+            self.delete_selected()
         elif key == 9:  # TAB
             shapes = getattr(self.diagram, "shapes", []) if self.diagram else []
             if not shapes:

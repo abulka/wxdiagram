@@ -91,9 +91,10 @@ direction and follows the shapes when they move.
 uv run python -m wxdiagram.demo
 ```
 
-The demo shows UML-style class boxes, a composite, a basic-shape gallery, a
-bitmap, a polyline and an arrowed line. It has Add, View and File menus,
-including JSON save/load.
+The demo is a kitchen-sink tour: UML-style class boxes, a composite, a
+basic-shape gallery, bitmaps, captions, a polyline and an arrowed line. The
+File/Edit/Add/Arrange/View menus expose JSON save/load, undo/redo, duplicate,
+delete, z-order, image import and zoom.
 
 Small runnable scripts live in `examples/`:
 
