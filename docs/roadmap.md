@@ -20,8 +20,9 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ marquee selection, Shift/Ctrl add, Esc clear, arrow-key nudge
 - ✅ grid and alignment guides
 - ✅ undo/redo, z-order, duplicate
-- buffered/HiDPI-aware painting
-- mouse drag tolerance
+- ✅ buffered painting (`bufferedPainting`)
+- ✅ mouse drag tolerance (3 px)
+- ✅ PNG export (`ShapeCanvas.ExportPng`)
 - ✅ `Shape.MoveTo` for top-left layout coordinates
 - ✅ overridable `getContentBounds()` for zoom-to-fit
 - ✅ `getContentOrigin()` so content at negative coordinates stays scrollable

@@ -26,6 +26,7 @@ attribution.
   splines, dashed pens, and bend control points.
 - **Shapes** — rectangles, ellipses, polygons, points, lines, bitmaps, divided
   shapes, labelled blocks, composites with constraints, and text labels.
+- **Export** — render the diagram to PNG at any scale (`ExportPng`).
 - **JSON persistence** — versioned, portable, no pickle.
 - **Keyboard** — Delete, Tab cycle, Ctrl+A, Ctrl+C/V.
 - **Headless-friendly** — shapes and the diagram model work without a window.

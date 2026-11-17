@@ -271,9 +271,10 @@ Source reference: `/Users/andy/Devel/shape-studio/src/ui/canvas.rs`,
 - Undo/redo (snapshot or command pattern).
 - Z-order: send to back / bring to front; duplicate.
 - Stable IDs + `next_id` in the document format.
-- Buffered/HiDPI-aware painting (fixes the known ogl2 flicker/sharpness gap).
-- Mouse drag tolerance (classic OGL uses 3 px).
-- Optional PNG export.
+- ✅ Buffered painting (`bufferedPainting` uses `AutoBufferedPaintDC`); drawing
+  stays logical-pixel based and lets wx handle DPI scaling.
+- ✅ Mouse drag tolerance (classic OGL uses 3 px).
+- ✅ Optional PNG export (`ShapeCanvas.ExportPng`).
 
 Acceptance:
 

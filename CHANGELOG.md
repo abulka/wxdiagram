@@ -67,6 +67,11 @@ pynsource canvas needs, without pulling any application code into the library.
   are drawn.  `alignmentGuides` turns it off.  Snapping is computed from the
   total drag offset, so a shape is not stuck to a guide as the pointer moves
   away.
+- `ShapeCanvas.ExportPng(path, scale=1.0, margin=0)` renders the shapes (no
+  handles, guides or marquee) to a PNG file; the demo's File menu has
+  Export PNG.
+- `bufferedPainting` opts into `wx.AutoBufferedPaintDC` (with
+  `BG_STYLE_PAINT`) to reduce flicker on platforms that do not composite.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

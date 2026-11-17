@@ -63,6 +63,28 @@ canvas.ALIGN_TOLERANCE = 4        # screen pixels
 
 Hit-testing and drawing only; nothing is stored in the document.
 
+## Export a PNG
+
+```python
+canvas.ExportPng("diagram.png", scale=2, margin=10)
+```
+
+Only the shapes are rendered (no handles, guides or marquee).  `scale`
+multiplies diagram units and `margin` is an output-pixel border.
+
+## Buffered painting
+
+Platforms that do not composite their windows can flicker while dragging.  Opt
+into a buffered paint pass:
+
+```python
+class MyCanvas(wxdiagram.ShapeCanvas):
+    bufferedPainting = True
+```
+
+It uses `wx.AutoBufferedPaintDC` and sets `wx.BG_STYLE_PAINT` (the canvas then
+erases its own background).
+
 ## Move by top-left coordinates
 
 `Move` takes the shape centre. Layouts and saved positions usually use the

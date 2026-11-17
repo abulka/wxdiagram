@@ -286,6 +286,9 @@ class DemoFrame(wx.Frame):
         self._add_item(file_menu, "&Open...\tCtrl+O", self.OnOpen, "Load a JSON diagram")
         self._add_item(file_menu, "&Save\tCtrl+S", self.OnSave, "Save as JSON")
         self._add_item(file_menu, "Save &As...\tCtrl+Shift+S", self.OnSave, "Save as JSON")
+        self._add_item(
+            file_menu, "Export &PNG...\tCtrl+Shift+E", self.OnExportPng, "Save a PNG image"
+        )
         self._add_item(file_menu, "E&xit\tAlt+F4", self.OnExit, "Quit")
 
         edit_menu = self._menu("&Edit")
@@ -556,6 +559,25 @@ class DemoFrame(wx.Frame):
                 path += ".json"
             save(self.canvas.diagram, path)
             self.SetStatusText(f"Saved {path}")
+
+    def OnExportPng(self, event):
+        with wx.FileDialog(
+            self,
+            "Export PNG",
+            wildcard="PNG image (*.png)|*.png",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dlg:
+            if dlg.ShowModal() != wx.ID_OK:
+                return
+            path = dlg.GetPath()
+            if not path.lower().endswith(".png"):
+                path += ".png"
+            if self.canvas.ExportPng(path, margin=10):
+                self.SetStatusText(f"Exported {path}")
+            else:
+                wx.MessageBox(
+                    f"Could not write {path}", "wxdiagram demo", wx.OK | wx.ICON_ERROR, self
+                )
 
     def OnExit(self, event):
         self.Close()

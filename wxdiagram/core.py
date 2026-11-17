@@ -1279,10 +1279,15 @@ class ShapeCanvas(ScrolledWindow):
     alignmentGuides = True
     #: alignment guide tolerance in screen pixels
     ALIGN_TOLERANCE = 4
+    #: use AutoBufferedPaintDC to reduce flicker on platforms that do not composite
+    bufferedPainting = False
     UNDO_LIMIT = 50
 
     def __init__(self, parent, id=-1, pos=(-1, -1), size=(-1, -1), style=0, name=""):
         ScrolledWindow.__init__(self, parent, id, pos, size, style, name)
+        if self.bufferedPainting:
+            # With BG_STYLE_PAINT the canvas is responsible for erasing.
+            self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetScrollbars(1, 1, 1000, 800)
         self.diagram = None
         self.nodes = []
@@ -1507,7 +1512,11 @@ class ShapeCanvas(ScrolledWindow):
         event.Skip()
 
     def onPaintEvent(self, event):
-        dc = PaintDC(self)
+        dc = (wx.AutoBufferedPaintDC if self.bufferedPainting else PaintDC)(self)
+        if self.bufferedPainting:
+            # BG_STYLE_PAINT: nothing erases the background for us.
+            dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
+            dc.Clear()
         self.PrepareDC(dc)
         dc.SetUserScale(self.scalex, self.scaley)
         self._apply_content_origin(dc)
@@ -1614,6 +1623,40 @@ class ShapeCanvas(ScrolledWindow):
         for item in self.diagram.shapes + self.nodes:
             if getattr(item, "IsShown", lambda: True)():
                 item.draw(dc)
+
+    def ExportPng(self, path, scale=1.0, margin=0):
+        """Render the diagram to a PNG file and return True on success.
+
+        Selection handles, guides and the marquee are not included.  ``scale``
+        multiplies diagram units and ``margin`` adds a border in output pixels.
+        """
+        if self.diagram is None:
+            return False
+        shapes = [
+            s for s in self.diagram.shapes if getattr(s, "IsShown", lambda: True)()
+        ]
+        xs = [value for shape in shapes for value in shape.x]
+        ys = [value for shape in shapes for value in shape.y]
+        if xs and ys:
+            min_x, max_x = min(xs), max(xs)
+            min_y, max_y = min(ys), max(ys)
+        else:
+            min_x = min_y = max_x = max_y = 0
+
+        width = int(max(1, round((max_x - min_x) * scale)) + 2 * margin)
+        height = int(max(1, round((max_y - min_y) * scale)) + 2 * margin)
+        bitmap = wx.Bitmap(width, height)
+        dc = wx.MemoryDC(bitmap)
+        try:
+            dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
+            dc.Clear()
+            dc.SetUserScale(scale, scale)
+            dc.SetDeviceOrigin(int(margin - min_x * scale), int(margin - min_y * scale))
+            for shape in shapes:
+                shape.draw(dc)
+        finally:
+            dc.SelectObject(wx.NullBitmap)
+        return bool(bitmap.SaveFile(str(path), wx.BITMAP_TYPE_PNG))
 
     ################
 
