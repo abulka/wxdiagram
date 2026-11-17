@@ -135,6 +135,34 @@ def test_dashed_edge_does_not_leak_its_pen_into_the_next_line(wx_app):
     frame.Destroy()
 
 
+def test_spline_arrow_references_follow_the_curve(wx_app):
+    line = wxdiagram.LineShape()
+    line.MakeLineControlPoints(3)
+    line._lineControlPoints[0] = wx.RealPoint(0, 0)
+    line._lineControlPoints[1] = wx.RealPoint(100, 80)
+    line._lineControlPoints[2] = wx.RealPoint(200, 0)
+    line.SetSpline(True)
+
+    start_ref, end_ref = line._arrow_reference_points()
+
+    # On the curve near the ends, not the far-off middle control point.
+    assert start_ref[0] < 30
+    assert end_ref[0] > 170
+    assert start_ref != (100, 80)
+    assert end_ref != (100, 80)
+
+
+def test_straight_arrow_references_use_the_neighbouring_points(wx_app):
+    line = wxdiagram.LineShape()
+    line.MakeLineControlPoints(2)
+    line.SetEnds(0, 0, 100, 0)
+
+    start_ref, end_ref = line._arrow_reference_points()
+
+    assert tuple(start_ref) == (100.0, 0.0)
+    assert tuple(end_ref) == (0.0, 0.0)
+
+
 def test_no_label_no_hit_outside_the_line(wx_app):
     frame, canvas = _make_canvas(wx_app)
     line = _line(canvas)

@@ -58,7 +58,7 @@ line.autoRoute = True        # avoid obstacles (straight when clear)
 line.autoRoute = "curved"    # always bow the edge (free bezier)
 line.UpdateRoute()           # "straight", "curved" or "orthogonal"
 
-line.SetRouteMode("straight")  # or "avoid" / "curved" at runtime
+line.SetRouteMode("straight")  # or "avoid" / "curved" / "orthogonal"
 line.GetRouteMode()
 ```
 

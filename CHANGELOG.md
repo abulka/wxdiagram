@@ -90,15 +90,21 @@ pynsource canvas needs, without pulling any application code into the library.
   of straight and curved edges.  Parallel edges between the same two shapes are
   spread into separate lanes.  `False` (default) keeps existing diagrams
   straight.
-- `LineShape.SetRouteMode("straight" | "avoid" | "curved")` /
+- `LineShape.SetRouteMode("straight" | "avoid" | "curved" | "orthogonal")` /
   `GetRouteMode()` switch an edge's style at runtime; the demo's right-click
-  menu does this per edge.
+  menu does this per edge and ticks the current style.
 - Orthogonal routes leave each shape along its attachment side's normal for a
   10-unit stub (so an edge no longer runs along or inside the box side), then
   take the shortest clear lane just outside the obstacles instead of an
   arbitrary bend multiple.
 - Fixed a pen leak: an edge with a label (or a dashed pen) left a transparent
   or dashed pen on the dc, which made later edges invisible or dashed.
+- Arrowheads on spline edges use points sampled along the curve (Catmull-Rom)
+  for their direction instead of the far-off middle control point, so heads on
+  routed curves point along the edge.
+- Demo: removed the `utils.py` block that sat over the sample image, and added
+  an EDGE STYLES section with coloured boxes connected by straight, curved and
+  orthogonal edges, each labelled with its type.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

@@ -213,11 +213,25 @@ def _populate(canvas):
     # -- media and code ---------------------------------------------------------------
     captions.append(make_caption(620, 410, "MEDIA & CODE"))
     bitmap = make_bitmap_shape(620, 450)
-    file_block = wxdiagram.Block()
-    file_block.label = "utils.py"
-    file_block.x = [620, 760]
-    file_block.y = [580, 650]
-    shapes.extend([bitmap, file_block])
+    shapes.append(bitmap)
+
+    # -- edge styles: the same pair connected three ways -----------------------
+    captions.append(make_caption(30, 410, "EDGE STYLES"))
+
+    def edge_pair(top, right_top, label, mode, colour):
+        left = wxdiagram.RectangleShape(30, top, 120, top + 50)
+        right = wxdiagram.RectangleShape(220, right_top, 310, right_top + 50)
+        for box in (left, right):
+            box.SetBrush(wx.Brush(colour))
+        shapes.extend([left, right])
+        edge = canvas.join_shapes(left, right)
+        edge.SetRouteMode(mode)
+        edge.AddText(label)
+        edge.SetLabelPosition(0, 0, -16)  # keep the label off the line
+
+    edge_pair(450, 450, "straight", "straight", "LIGHT BLUE")
+    edge_pair(520, 520, "curved", "curved", "PALE GREEN")
+    edge_pair(610, 580, "orthogonal", "orthogonal", "LIGHT YELLOW")
 
     # -- lines and arrows -------------------------------------------------------------
     captions.append(make_caption(850, 410, "LINES & ARROWS"))
@@ -465,15 +479,19 @@ class DemoFrame(wx.Frame):
         self._popup_item(menu, "Delete", lambda e: self.canvas.delete_selected())
         if isinstance(shape, wxdiagram.LineShape) and getattr(shape, "_from", None) is not None:
             menu.AppendSeparator()
+            current = shape.GetRouteMode()
             for label, mode in (
                 ("Edge: &Straight", "straight"),
                 ("Edge: &Curved", "curved"),
                 ("Edge: &Avoid boxes", "avoid"),
+                ("Edge: &Orthogonal", "orthogonal"),
             ):
-                self._popup_item(
-                    menu,
-                    label,
+                item = menu.AppendRadioItem(wx.ID_ANY, label)
+                item.Check(current == mode)
+                self.Bind(
+                    wx.EVT_MENU,
                     lambda e, s=shape, m=mode: self._set_route_mode(s, m),
+                    item,
                 )
         if hasattr(shape, "ResetSize"):
             menu.AppendSeparator()

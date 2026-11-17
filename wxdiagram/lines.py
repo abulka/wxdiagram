@@ -27,12 +27,41 @@ from . import routing
 # actually a lot of stuff has been added to core module LineShapeOri
 
 
+def _catmull_rom_points(points, steps=12):
+    """Sample a smooth curve through ``points`` (for arrow tangents)."""
+    if len(points) < 3:
+        return [tuple(point) for point in points]
+    padded = [points[0]] + list(points) + [points[-1]]
+    sampled = []
+    for i in range(1, len(padded) - 2):
+        p0, p1, p2, p3 = (tuple(padded[i - 1]), tuple(padded[i]),
+                          tuple(padded[i + 1]), tuple(padded[i + 2]))
+        for step in range(steps):
+            t = step / steps
+            t2 = t * t
+            t3 = t2 * t
+            x = 0.5 * (
+                2 * p1[0]
+                + (-p0[0] + p2[0]) * t
+                + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2
+                + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3
+            )
+            y = 0.5 * (
+                2 * p1[1]
+                + (-p0[1] + p2[1]) * t
+                + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2
+                + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3
+            )
+            sampled.append((x, y))
+    sampled.append(tuple(points[-1]))
+    return sampled
+
+
 class LineShape(LineShapeBase, Selectable, Resizeable):
     #: Route attached lines around unrelated rectangles.  ``False`` (default)
     #: keeps the exact straight-line look; ``True`` avoids obstacles only;
     #: ``"curved"`` draws a free bezier even when the path is clear (the usual
-    #: UML look), still escalating to a bigger bend or an orthogonal lane when
-    #: boxes are in the way.
+    #: UML look); ``"orthogonal"`` always uses an L/Z route with side stubs.
     autoRoute = False
 
     def __init__(self):
@@ -70,6 +99,26 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         #: on-screen label rectangles, filled in by DrawLabels for hit-testing
         self._labelRects = {}
 
+    def _arrow_reference_points(self, distance=12.0):
+        """Points near each end, on the drawn curve, for arrowhead direction."""
+        points = self._lineControlPoints
+        if not points or len(points) < 2:
+            return (0.0, 0.0), (0.0, 0.0)
+        if not self._isSpline or len(points) < 3:
+            return points[1], points[-2]
+
+        sampled = _catmull_rom_points(points)
+
+        def walk(sequence):
+            travelled = 0.0
+            for first, second in zip(sequence, sequence[1:]):
+                travelled += math.hypot(second[0] - first[0], second[1] - first[1])
+                if travelled >= distance:
+                    return second
+            return sequence[-1]
+
+        return walk(sampled), walk(list(reversed(sampled)))
+
     def DrawArrow(self, dc, arrow, XOffset, proportionalOffset):
         """
         Draw the given arrowhead (or annotation).
@@ -81,10 +130,10 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         :param `proportionalOffset`: `True` when `XOffset` is a proportion of the line length
         """
         first_line_point = self._lineControlPoints[0]
-        second_line_point = self._lineControlPoints[1]
-
         last_line_point = self._lineControlPoints[-1]
-        second_last_line_point = self._lineControlPoints[-2]
+        # Neighbours used for the arrow direction.  For splines use points on
+        # the curve near each end so the head follows the tangent.
+        second_line_point, second_last_line_point = self._arrow_reference_points()
 
         # Position of start point of line, at the end of which we draw the arrow
         startPositionX, startPositionY = 0.0, 0.0
@@ -914,6 +963,7 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             obstacles,
             spread=self._lane_offset(),
             prefer_curve=self.autoRoute == "curved",
+            prefer_orthogonal=self.autoRoute == "orthogonal",
             start_normal=self._endpoint_normal(start, self._from),
             end_normal=self._endpoint_normal(end, self._to),
         )
@@ -933,9 +983,14 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         bend is dropped); ``avoid`` bends only when a box is in the way;
         ``curved`` always bows into a spline.
         """
-        if mode not in ("straight", "avoid", "curved"):
+        if mode not in ("straight", "avoid", "curved", "orthogonal"):
             raise ValueError(f"Unknown route mode: {mode!r}")
-        self.autoRoute = {"straight": False, "avoid": True, "curved": "curved"}[mode]
+        self.autoRoute = {
+            "straight": False,
+            "avoid": True,
+            "curved": "curved",
+            "orthogonal": "orthogonal",
+        }[mode]
         if self.autoRoute:
             self.UpdateRoute()
         else:
@@ -948,6 +1003,8 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         """Return the current routing mode (see :meth:`SetRouteMode`)."""
         if self.autoRoute == "curved":
             return "curved"
+        if self.autoRoute == "orthogonal":
+            return "orthogonal"
         return "avoid" if self.autoRoute else "straight"
 
     def ResetRoute(self):

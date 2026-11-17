@@ -90,6 +90,7 @@ def route_edge(
     bend=ROUTE_BEND,
     spread=0.0,
     prefer_curve=False,
+    prefer_orthogonal=False,
     start_normal=None,
     end_normal=None,
 ):
@@ -99,8 +100,9 @@ def route_edge(
     ``orthogonal``.  Falls back to the straight segment if nothing clears.
 
     ``prefer_curve`` asks for a free bezier even when the straight segment is
-    clear (the usual look for UML class edges).  Otherwise a clear segment stays
-    straight and curves are only used to dodge boxes.
+    clear (the usual look for UML class edges); ``prefer_orthogonal`` skips the
+    straight/curve tiers and goes straight to an orthogonal L/Z route.  Otherwise
+    a clear segment stays straight and curves are only used to dodge boxes.
 
     ``spread`` shifts the route sideways (perpendicular to the edge) so parallel
     edges between the same pair of shapes do not overlap.  For a straight edge
@@ -135,7 +137,11 @@ def route_edge(
             + [points[-1]]
         )
 
-    if not prefer_curve and (not obstacles or _polyline_clear([p1, p2], obstacles, padding)):
+    if (
+        not prefer_curve
+        and not prefer_orthogonal
+        and (not obstacles or _polyline_clear([p1, p2], obstacles, padding))
+    ):
         return spread_points([p1, p2], "straight"), "straight"
 
     # A gentle free curve first when the caller wants curved edges; the larger
@@ -146,7 +152,7 @@ def route_edge(
     distances.extend((bend, bend * 2.0, bend * 3.0))
 
     seen = set()
-    for distance in distances:
+    for distance in distances if not prefer_orthogonal else ():
         if distance in seen:
             continue
         seen.add(distance)
