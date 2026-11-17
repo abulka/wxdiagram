@@ -39,6 +39,8 @@ pynsource canvas needs, without pulling any application code into the library.
   with the mouse instead of being rescaled on every motion.
 - Resize handles stay under the cursor during a drag (hit-testing no longer
   lags behind the shape).
+- Clicking a resize handle no longer clears the selection/handles, fixing
+  disappearing resize indicators.
 - Demo uses the sample photograph at `examples/assets/sample-image.jpg`;
   rectangles are resizable and captions are movable.
 - `Block.OnRightDown` no longer pops a debug message box (right-click menus are

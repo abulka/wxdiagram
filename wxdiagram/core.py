@@ -1957,6 +1957,15 @@ class ShapeCanvas(ScrolledWindow):
                 self._marquee_begin(event)
             return
 
+        if isinstance(shape, Node):
+            # Clicking a resize/port handle must NOT clear self.nodes: those
+            # are the visible handles.  Select just the node so OnMotion
+            # resizes, while the other handles stay on screen.
+            self.begin_undo()
+            self.select(shape)
+            self.Refresh()
+            return
+
         if self.bringClickedShapeToFront and not isinstance(shape, (Node, ConnectionShape)):
             # Bring normal shapes to top, not Node shapes or ConnectionShape lines
             self.diagram.ChangeShapeOrder(shape, len(self.diagram.shapes) - 1)
@@ -3301,7 +3310,8 @@ class ResizeableNode(Node):
         resizable_node = self
 
         if resizable_node not in selected_ResizableNodes:
-            print("warning: incomplete line drag")
+            # The selection can legitimately change before mouse-up; not an error.
+            pass
 
         shape = self.item  # actual shape being re-sized
 
