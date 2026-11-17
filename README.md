@@ -28,7 +28,7 @@ OGLlike attribution.
   perimeters, so edges always meet the facing sides and re-route when shapes
   move. Explicit lines support arrowheads (start/middle/end), splines, dashed
   pens, and bend control points.
-- **Shapes**: rectangles, ellipses, polygons, points, lines, bitmaps, divided
+- **Shapes**: rectangles, ellipses, polygons, points, lines, resizable bitmaps, divided
   (UML-style) shapes, labelled blocks, composite shapes with layout
   constraints, and non-interactive text labels.
 - **JSON persistence**: `Diagram.Save(path)` / `Diagram.Load(path)` or

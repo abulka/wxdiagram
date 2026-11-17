@@ -217,3 +217,75 @@ def test_dragging_one_of_multiple_selected_moves_all(wx_app):
     assert (second.x[0] - start_second[0], second.y[0] - start_second[1]) == (20, 10)
     assert set(canvas.getSelectedShapes()) == {first, second}
     frame.Destroy()
+
+
+def test_click_does_not_reorder_when_disabled(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    canvas.bringClickedShapeToFront = False
+    first = _add_rect(canvas, 0, 0, 100, 100)
+    second = _add_rect(canvas, 200, 200, 300, 300)
+    canvas.SetScrollbars(1, 1, 2000, 2000, 0, 0)
+    wx.Yield()
+
+    order = list(canvas.GetDiagram().shapes)
+    centre = (first.GetX(), first.GetY())
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, centre, down=True))
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, centre))
+
+    assert canvas.GetDiagram().shapes == order
+    assert first in canvas.getSelectedShapes()
+    assert second not in canvas.getSelectedShapes()
+    frame.Destroy()
+
+
+def test_bring_forward_send_backward(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    first = _add_rect(canvas, 0, 0, 100, 100)
+    second = _add_rect(canvas, 20, 20, 120, 120)
+    third = _add_rect(canvas, 40, 40, 140, 140)
+    original = list(canvas.GetDiagram().shapes)
+    assert original == [third, second, first]
+
+    canvas.bring_forward([second])
+    assert canvas.GetDiagram().shapes == [third, first, second]
+    canvas.send_backward([second])
+    assert canvas.GetDiagram().shapes == original
+    frame.Destroy()
+
+
+def test_add_image_scales_centers_and_sends_to_back(wx_app, tmp_path):
+    frame, canvas = _make_canvas(wx_app)
+    canvas.SetScrollbars(1, 1, 2000, 2000, 0, 0)
+    wx.Yield()
+
+    image = wx.Image(40, 30)
+    image.SetRGB(wx.Rect(0, 0, 40, 30), 200, 100, 50)
+    path = tmp_path / "sample.png"
+    image.SaveFile(str(path), wx.BITMAP_TYPE_PNG)
+
+    client_w, client_h = canvas.GetClientSize()
+    centre = canvas.client_pos_in_diagram_coords(client_w / 2, client_h / 2)
+    shape = canvas.AddImage(str(path), max_size=(20, 20), center=True, send_to_back=True)
+
+    assert shape is not None
+    assert shape.GetBitmap().GetWidth() == 20
+    assert shape.GetBitmap().GetHeight() == 15
+    assert canvas.GetDiagram().shapes[0] is shape
+    assert abs(shape.GetX() - centre[0]) <= 1
+    assert abs(shape.GetY() - centre[1]) <= 1
+    frame.Destroy()
+
+
+def test_resizable_bitmap_shape(wx_app):
+    image = wx.Image(40, 30)
+    image.SetRGB(wx.Rect(0, 0, 40, 30), 200, 100, 50)
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(image))
+
+    shape.SetSize(20, 15)
+    assert shape.GetBitmap().GetWidth() == 20
+    assert shape.GetBitmap().GetHeight() == 15
+
+    shape.ResetSize()
+    assert shape.GetBitmap().GetWidth() == 40
+    assert shape.GetBitmap().GetHeight() == 30

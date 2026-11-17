@@ -16,11 +16,15 @@
 The :class:`~lib.ogl.bmpshape.BitmapShape` class.
 """
 
+import wx
+
 from .core import RectangleShape, Selectable, Resizeable
 
 
 class BitmapShape(RectangleShape, Selectable, Resizeable):  # ANDY
     """The :class:`wx.BitmapShape` class draws a bitmap (non-resizable)."""
+
+    is_bitmap = True
 
     def __init__(self):
         """
@@ -94,4 +98,38 @@ class BitmapShape(RectangleShape, Selectable, Resizeable):  # ANDY
         return self._filename
 
 
-__all__ = ["BitmapShape"]
+class ResizableBitmapShape(BitmapShape):
+    """A bitmap shape whose displayed bitmap is rescaled when it is resized."""
+
+    def __init__(self):
+        BitmapShape.__init__(self)
+        self._ori_bmp = None
+
+    def ResetSize(self):
+        """Restore the bitmap's original dimensions."""
+        if self._bitmap.IsOk():
+            self.SetSize(self._ori_bmp.GetWidth(), self._ori_bmp.GetHeight())
+
+    def SetSize(self, w, h, recursive=True):
+        if self._bitmap.IsOk():
+            base = self._ori_bmp or self._bitmap
+            w = max(1, int(w))
+            h = max(1, int(h))
+            if self._bitmap.GetWidth() != w or self._bitmap.GetHeight() != h:
+                img = base.ConvertToImage()
+                adjusted = img.Rescale(w, h, wx.IMAGE_QUALITY_HIGH)
+                self._bitmap = wx.Bitmap(adjusted)
+            w = self._bitmap.GetWidth()
+            h = self._bitmap.GetHeight()
+
+        self.SetAttachmentSize(w, h)
+        self._width = w
+        self._height = h
+        self.SetDefaultRegionSize()
+
+    def SetBitmap(self, bitmap):
+        BitmapShape.SetBitmap(self, bitmap)
+        self._ori_bmp = bitmap
+
+
+__all__ = ["BitmapShape", "ResizableBitmapShape"]

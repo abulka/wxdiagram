@@ -1231,6 +1231,8 @@ class ShapeCanvas(ScrolledWindow):
     WHEEL_SCROLL_PIXELS = 20
     #: pixels of movement before a canvas drag becomes a pan
     PAN_START_THRESHOLD = 3
+    #: raise a shape to the top when it is clicked
+    bringClickedShapeToFront = True
     #: what a plain left-drag on empty canvas does: draw a marquee or pan
     EMPTY_DRAG_PAN = "pan"
     EMPTY_DRAG_MARQUEE = "marquee"
@@ -1819,6 +1821,90 @@ class ShapeCanvas(ScrolledWindow):
         finally:
             self.commit_undo()
 
+    def bring_forward(self, shapes=None):
+        """Move the given shapes one step up in the z-order."""
+        shapes = list(shapes) if shapes is not None else list(self.getSelectedShapes())
+        self.begin_undo()
+        try:
+            for shape in shapes:
+                if self.diagram is None or shape not in self.diagram.shapes:
+                    continue
+                index = self.diagram.shapes.index(shape)
+                if index < len(self.diagram.shapes) - 1:
+                    self.diagram.ChangeShapeOrder(shape, index + 1)
+            self.Refresh()
+        finally:
+            self.commit_undo()
+
+    def send_backward(self, shapes=None):
+        """Move the given shapes one step down in the z-order."""
+        shapes = list(shapes) if shapes is not None else list(self.getSelectedShapes())
+        self.begin_undo()
+        try:
+            for shape in shapes:
+                if self.diagram is None or shape not in self.diagram.shapes:
+                    continue
+                index = self.diagram.shapes.index(shape)
+                if index > 0:
+                    self.diagram.ChangeShapeOrder(shape, index - 1)
+            self.Refresh()
+        finally:
+            self.commit_undo()
+
+    def AddImage(
+        self,
+        path,
+        max_size=None,
+        center=True,
+        send_to_back=True,
+        shape_factory=None,
+        **shape_kwargs,
+    ):
+        """Load an image, add it as a resizable bitmap shape and return it.
+
+        ``max_size=(w, h)`` scales large images down (preserving aspect ratio).
+        ``center=True`` places it in the middle of the current viewport.
+        ``send_to_back=True`` puts imported images behind the diagram.
+        ``shape_factory`` lets applications supply a shape subclass (for example
+        one mixing in their own event handler).
+        """
+        from .bmpshape import ResizableBitmapShape
+
+        image = wx.Image(path, wx.BITMAP_TYPE_ANY)
+        if not image.IsOk():
+            return None
+
+        if max_size:
+            max_w, max_h = max_size
+            width, height = image.GetWidth(), image.GetHeight()
+            if width and height:
+                scale = min(1.0, float(max_w) / width, float(max_h) / height)
+                if scale < 0.999:
+                    image = image.Scale(
+                        max(1, int(width * scale)),
+                        max(1, int(height * scale)),
+                        wx.IMAGE_QUALITY_HIGH,
+                    )
+
+        shape = shape_factory(**shape_kwargs) if shape_factory else ResizableBitmapShape()
+        shape.SetBitmap(wx.Bitmap(image))
+        shape.SetFilename(path)
+
+        if center:
+            client_w, client_h = self.GetClientSize()
+            centre_x, centre_y = self.client_pos_in_diagram_coords(client_w / 2, client_h / 2)
+            x = centre_x - image.GetWidth() / 2
+            y = centre_y - image.GetHeight() / 2
+        else:
+            x = y = 0
+
+        shape.move_to(x, y)
+        self.AddShape(shape)
+        if send_to_back:
+            self.send_to_back([shape])
+        self.Refresh()
+        return shape
+
     def _capture_lost(self, event):
         self._panning = False
         self._pan_pending = False
@@ -1859,9 +1945,9 @@ class ShapeCanvas(ScrolledWindow):
                 self._marquee_begin(event)
             return
 
-        if not isinstance(shape, (Node, ConnectionShape)):
+        if self.bringClickedShapeToFront and not isinstance(shape, (Node, ConnectionShape)):
             # Bring normal shapes to top, not Node shapes or ConnectionShape lines
-            self.diagram.ChangeShapeOrder(shape, 999)
+            self.diagram.ChangeShapeOrder(shape, len(self.diagram.shapes) - 1)
 
         # A click may become a drag or resize; record only if it changes state.
         self.begin_undo()

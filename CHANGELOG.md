@@ -21,6 +21,12 @@ pynsource canvas needs, without pulling any application code into the library.
   send-to-back, and a snapshot-based undo/redo stack.
 - Clicking a shape that is already selected keeps the multi-selection, so a
   drag moves the whole group (clicking an unselected shape still selects it).
+- `bringClickedShapeToFront` (default True) controls whether clicking raises a
+  shape; applications such as pynsource switch it off and use explicit z-order.
+- `bring_forward()` and `send_backward()` alongside front/back.
+- `ResizableBitmapShape` (rescaled bitmap on resize) and
+  `ShapeCanvas.AddImage(path, max_size, center, send_to_back, shape_factory)`
+  for consistent image import.
 - `Shape.marqueeSelectable` so labels and decorations can opt out of marquee
   selection.
 

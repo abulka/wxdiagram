@@ -107,7 +107,7 @@ from .core import (
 )
 from .polygon import PolygonShape
 from .lines import ArrowHead, ControlPoint, LineControlPoint, LineShape
-from .bmpshape import BitmapShape
+from .bmpshape import BitmapShape, ResizableBitmapShape
 from .divided import DividedShape
 from .composite import (
     Constraint,
@@ -230,6 +230,7 @@ __all__ = [
     "ControlPoint",
     "LineControlPoint",
     "BitmapShape",
+    "ResizableBitmapShape",
     "DividedShape",
     "Constraint",
     "ConstraintType",
