@@ -223,7 +223,7 @@ def _populate(canvas):
             box.SetBrush(wx.Brush(colour))
         shapes.extend([left, right])
         if blocker:
-            bar = wxdiagram.RectangleShape(200, top + 10, 245, top + 50)
+            bar = wxdiagram.RectangleShape(200, top + 22, 245, top + 40)
             bar.SetBrush(wx.Brush("LIGHT GREY"))
             shapes.append(bar)
         edge = canvas.join_shapes(left, right)
@@ -233,13 +233,13 @@ def _populate(canvas):
 
     edge_pair(450, 450, "straight", "straight", "LIGHT BLUE")
     edge_pair(530, 530, "curved", "curved", "PALE GREEN")
-    edge_pair(610, 610, "auto", "auto", "PALE GREEN", blocker=True)
-    edge_pair(690, 690, "avoid", "avoid", "PALE GREEN", blocker=True)
-    edge_pair(790, 770, "orthogonal", "orthogonal", "LIGHT YELLOW", label_offset=26)
+    edge_pair(610, 610, "auto", "auto", "PALE GREEN", blocker=True, label_offset=-26)
+    edge_pair(690, 690, "avoid", "avoid", "PALE GREEN", blocker=True, label_offset=-26)
+    edge_pair(810, 790, "orthogonal", "orthogonal", "LIGHT YELLOW", label_offset=30)
 
     # -- lines and arrows -------------------------------------------------------------
     captions.append(make_caption(880, 410, "LINES & ARROWS"))
-    polyline = make_polyline(880, 430)
+    polyline = make_polyline(880, 445)
     arrowed = wxdiagram.LineShape()
     arrowed.MakeLineControlPoints(2)
     arrowed.SetEnds(880, 490, 1110, 540)

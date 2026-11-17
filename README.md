@@ -31,10 +31,13 @@ OGLlike attribution.
 - **Connectors**: attached lines whose endpoints are clipped to the shapes'
   perimeters, so edges always meet the facing sides and re-route when shapes
   move. Explicit lines support arrowheads (start/middle/end), splines, dashed
-  pens, and bend control points.
-- **Shapes**: resizable rectangles, ellipses, polygons, points, lines, resizable bitmaps, divided
-  (UML-style) shapes, labelled blocks, composite shapes with layout
-  constraints, non-interactive text labels and movable text captions.
+  pens, bend control points, editable labels and per-edge routing modes
+  (`straight`, `auto`, `avoid`, `curved`, `orthogonal`).
+- **Shapes**: resizable rectangles, ellipses, polygons (interior hit-testing),
+  points, lines, resizable bitmaps, divided (UML-style) shapes, labelled
+  blocks, composite shapes with layout constraints that scale their children,
+  non-interactive text labels and movable text captions.
+- **Export**: render the diagram to PNG at any scale (`ShapeCanvas.ExportPng`).
 - **JSON persistence**: `Diagram.Save(path)` / `Diagram.Load(path)` or
   `wxdiagram.persistence`; versioned, portable, no pickle.
 - **Keyboard**: Delete, Tab cycle, Ctrl+A, Ctrl+C/V.

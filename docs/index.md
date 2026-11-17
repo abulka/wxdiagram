@@ -23,10 +23,11 @@ attribution.
   Alt = from centre), hover ports, drag port-to-shape to connect, an optional
   grid with snap-to-grid, and magnetic alignment guides.
 - **Connectors** — attached lines clipped to shape perimeters, arrowheads,
-  splines, dashed pens, bend control points, editable edge labels, and optional
-  routing around unrelated shapes.
-- **Shapes** — rectangles, ellipses, polygons, points, lines, bitmaps, divided
-  shapes, labelled blocks, composites with constraints, and text labels.
+  splines, dashed pens, bend control points, editable edge labels, and per-edge
+  routing modes (`straight`, `auto`, `avoid`, `curved`, `orthogonal`).
+- **Shapes** — rectangles, ellipses, polygons (interior hit-testing), points,
+  lines, bitmaps, divided shapes, labelled blocks, composites with constraints
+  that scale their children, and text labels.
 - **Export** — render the diagram to PNG at any scale (`ExportPng`).
 - **JSON persistence** — versioned, portable, no pickle.
 - **Keyboard** — Delete, Tab cycle, Ctrl+A, Ctrl+C/V.

@@ -36,6 +36,10 @@ plugins:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Tutorials:
+      - Canvas and shapes: tutorials/canvas-and-shapes.md
+      - Edges, labels and arrows: tutorials/edges-and-labels.md
+      - Images, composites and export: tutorials/images-composites-export.md
   - Cookbook: cookbook.md
   - API reference: api.md
   - Migration from wx.lib.ogl: migration-from-wx-lib-ogl.md

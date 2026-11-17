@@ -837,6 +837,17 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
 
         return first_point[0], first_point[1], last_point[0], last_point[1]
 
+    def GetControlPoints(self):
+        """Return copies of the line's control points as ``(x, y)`` tuples."""
+        return [(point[0], point[1]) for point in self._lineControlPoints]
+
+    def SetControlPoint(self, index, x, y):
+        """Move one control point (bend, endpoint or spline midpoint)."""
+        if not self._lineControlPoints or not 0 <= index < len(self._lineControlPoints):
+            raise IndexError(f"Control point {index} out of range")
+        self._lineControlPoints[index] = wx.RealPoint(x, y)
+        self._sync_xy_from_control_points()
+
     def SetAttachments(self, from_attach, to_attach):
         """
         Specify which object attachment points should be used at each end of the line.

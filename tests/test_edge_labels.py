@@ -2,6 +2,8 @@
 
 import wx
 
+import pytest
+
 import wxdiagram
 
 
@@ -161,6 +163,19 @@ def test_straight_arrow_references_use_the_neighbouring_points(wx_app):
 
     assert tuple(start_ref) == (100.0, 0.0)
     assert tuple(end_ref) == (0.0, 0.0)
+
+
+def test_line_control_point_accessors(wx_app):
+    line = wxdiagram.LineShape()
+    line.MakeLineControlPoints(2)
+    line.SetEnds(0, 0, 100, 0)
+
+    line.SetControlPoint(1, 60, 40)
+
+    assert line.GetControlPoints() == [(0.0, 0.0), (60.0, 40.0)]
+    assert line.GetEnds() == (0.0, 0.0, 60.0, 40.0)
+    with pytest.raises(IndexError):
+        line.SetControlPoint(5, 0, 0)
 
 
 def test_no_label_no_hit_outside_the_line(wx_app):
