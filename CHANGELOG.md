@@ -77,6 +77,11 @@ pynsource canvas needs, without pulling any application code into the library.
   every event by 20.  macOS now scrolls by the reported deltas directly
   (`WHEEL_SCROLL_PIXELS_MACOS`), a single event is clamped to `WHEEL_MAX_STEP`,
   and x/y fractional remainders accumulate separately.
+- Edge labels: `LineShape.AddText()` / `SetLabelText()` put text at the middle
+  (or start/end) of a line, drawn with a background pad;
+  `GetLabelPosition()` / `SetLabelPosition()` control the anchor.  Labels are
+  part of the saved regions, and line hit-testing now includes the label boxes,
+  so clicking a label selects the edge.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

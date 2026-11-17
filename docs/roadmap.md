@@ -33,7 +33,8 @@ See `PLAN.md` in the repository for the full, maintained plan.
 
 - hybrid curved connectors with obstacle avoidance (from `uml-craft`)
 - orthogonal fallback, side selection, lane spreading
-- edge labels and markers, edge hit-testing
+- ✅ edge hit-testing and labels (middle/start/end)
+- markers on curves, label collision avoidance
 
 ## 0.4 — layout
 

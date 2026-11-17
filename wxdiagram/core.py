@@ -1599,6 +1599,7 @@ class ShapeCanvas(ScrolledWindow):
         they never constrain a finished edge.  ``edge_type`` is accepted for
         compatibility (subclasses such as pynsource's UmlCanvas override this
         to build richer edges) but the base line is unadorned.
+        Returns the created line so callers can label it.
         """
         from .lines import LineShape
 
@@ -1608,6 +1609,7 @@ class ShapeCanvas(ScrolledWindow):
         line.SetEnds(fromShape.GetX(), fromShape.GetY(), toShape.GetX(), toShape.GetY())
         self.InsertShape(line, 0)
         fromShape.AddLine(line, toShape)
+        return line
 
     def Redraw(self, dc):
         """

@@ -20,7 +20,7 @@ from .geometry import (
 )
 from .basic import get_black_foreground_pen
 from .core import LineShapeBase
-from .basic import ShapeRegion
+from .basic import ShapeRegion, ShapeTextLine
 
 # local OGL LineShape doesn't have much, so add....
 # actually a lot of stuff has been added to core module LineShapeOri
@@ -59,6 +59,8 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         self._lineOrientations = []
         self._lineControlPoints = []
         self._arcArrows = []
+        #: on-screen label rectangles, filled in by DrawLabels for hit-testing
+        self._labelRects = {}
 
     def DrawArrow(self, dc, arrow, XOffset, proportionalOffset):
         """
@@ -360,6 +362,117 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
                 dc.SetPen(solid_pen)
 
         self.DrawArrows(dc)
+        self.DrawLabels(dc)
+
+    # --- Labels -------------------------------------------------------------
+
+    def AddText(self, string, position=0):
+        """Add a label line to a line region.
+
+        ``position`` is 0 for the middle of the line (the default), 1 for near
+        the start and 2 for near the end.
+        """
+        region = self._regions[position]
+        text = region.GetText()
+        text = f"{text}\n{string}" if text else string
+        self.SetLabelText(position, text)
+
+    def SetLabelText(self, position, text):
+        """Replace the label text of one line region."""
+        region = self._regions[position]
+        region.SetText(text)
+        region.ClearText()
+        for line in text.split("\n"):
+            region.GetFormattedText().append(ShapeTextLine(0, 0, line))
+        self._labelRects.pop(position, None)
+
+    def SetLabelPosition(self, position, x, y):
+        """Offset a label from its default point on the line."""
+        self._regions[position].SetPosition(x, y)
+        self._labelRects.pop(position, None)
+
+    def _label_lines(self, position):
+        region = self._regions[position]
+        lines = [line.GetText() for line in region.GetFormattedText()]
+        if not lines:
+            text = region.GetText()
+            lines = text.split("\n") if text else []
+        return lines
+
+    def _point_along(self, fraction):
+        """Point at ``fraction`` of the line's length (chords for splines)."""
+        points = self._lineControlPoints
+        if not points:
+            return self.GetX(), self.GetY()
+        if len(points) == 1:
+            return points[0][0], points[0][1]
+
+        segments = []
+        total = 0.0
+        for first, second in zip(points, points[1:]):
+            length = math.hypot(second[0] - first[0], second[1] - first[1])
+            segments.append((first, second, length))
+            total += length
+        if total <= 0:
+            return points[0][0], points[0][1]
+
+        target = total * fraction
+        walked = 0.0
+        for first, second, length in segments:
+            if length > 0 and walked + length >= target:
+                t = (target - walked) / length
+                return (
+                    first[0] + (second[0] - first[0]) * t,
+                    first[1] + (second[1] - first[1]) * t,
+                )
+            walked += length
+        return points[-1][0], points[-1][1]
+
+    def GetLabelPosition(self, position):
+        """Return the label anchor in diagram coordinates."""
+        base_x, base_y = self._point_along((0.5, 0.15, 0.85)[position])
+        offset_x, offset_y = self._regions[position].GetPosition()
+        return base_x + offset_x, base_y + offset_y
+
+    def DrawLabels(self, dc):
+        """Draw the line's labels and remember their rectangles for hit-testing."""
+        for position in range(3):
+            lines = self._label_lines(position)
+            if not lines:
+                self._labelRects.pop(position, None)
+                continue
+            region = self._regions[position]
+            font = region.GetFont()
+            if font:
+                dc.SetFont(font)
+            dc.SetTextForeground(region.GetActualColourObject())
+
+            extents = [dc.GetTextExtent(line) for line in lines]
+            width = max(extent[0] for extent in extents)
+            height = sum(extent[1] for extent in extents)
+            centre_x, centre_y = self.GetLabelPosition(position)
+            pad = 2
+
+            background = wx.WHITE
+            canvas = self.GetCanvas()
+            if canvas is not None:
+                background = canvas.GetBackgroundColour()
+            dc.SetPen(wx.TRANSPARENT_PEN)
+            dc.SetBrush(wx.Brush(background))
+            left = centre_x - width / 2.0 - pad
+            top = centre_y - height / 2.0 - pad
+            dc.DrawRectangle(int(left), int(top), int(width + 2 * pad), int(height + 2 * pad))
+            self._labelRects[position] = (
+                left,
+                top,
+                left + width + 2 * pad,
+                top + height + 2 * pad,
+            )
+
+            text_y = centre_y - height / 2.0
+            for line, (line_w, line_h) in zip(lines, extents):
+                dc.DrawText(line, int(centre_x - line_w / 2.0), int(text_y))
+                text_y += line_h
 
     def OnDrawControlPoints(self, dc):
         """The draw control points handler."""
@@ -885,26 +998,11 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         if not self._lineControlPoints:
             return False
 
-        # Look at label regions in case mouse is over a label
-        inLabelRegion = False
-        # for i in range(3):
-        #     if self._regions[i]:
-        #         region = self._regions[i]
-        #         if len(region._formattedText):
-        #             xp, yp = self.GetLabelPosition(i)
-        #             # Offset region from default label position
-        #             cx, cy = region.GetPosition()
-        #             cw, ch = region.GetSize()
-        #             cx += xp
-        #             cy += yp
-        #
-        #             rLeft = cx - cw / 2.0
-        #             rTop = cy - ch / 2.0
-        #             rRight = cx + cw / 2.0
-        #             rBottom = cy + ch / 2.0
-        #             if x > rLeft and x < rRight and y > rTop and y < rBottom:
-        #                 inLabelRegion = True
-        #                 break
+        # Labels sit on or near the line and are clickable as well.  The
+        # rectangles are cached by DrawLabels (paint happens before clicks).
+        for rect in self._labelRects.values():
+            if rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]:
+                return (0, 0.0)
 
         for i in range(len(self._lineControlPoints) - 1):
             point1 = self._lineControlPoints[i]
@@ -930,7 +1028,6 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
                 abs(distance_from_seg) < extra
                 and distance_from_prev >= 0
                 and distance_from_prev <= seg_len
-                or inLabelRegion
             ):
                 return 0, distance_from_seg
 

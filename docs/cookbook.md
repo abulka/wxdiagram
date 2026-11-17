@@ -50,6 +50,18 @@ negative diagram coordinates is still reachable. Override it alongside
         return self.box_origin()      # (min_x, min_y)
 ```
 
+## Edge labels
+
+```python
+line = canvas.join_shapes(client, controller)   # join_shapes returns the line
+line.AddText("uses")                            # middle label
+line.SetLabelPosition(0, 0, -12)                # nudge it off the line
+```
+
+Region indices: 0 = middle, 1 = near the start, 2 = near the end.
+`SetLabelText(index, text)` replaces the text (multi-line via `\n`).  Labels
+are stored with the shape's regions, so they save and load with the diagram.
+
 ## Scrolling speed
 
 ```python

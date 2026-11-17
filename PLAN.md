@@ -292,7 +292,9 @@ and `layout/route/mod.rs`.
   - deflect control points when that is enough;
   - fall back to a rounded orthogonal route.
 - Side selection and lane-spread anchors.
-- Edge hit-testing, labels, arrowheads/markers on curves.
+- ✅ Edge hit-testing (segment corridor + label boxes), labels
+  (`AddText`/`SetLabelText`, middle/start/end anchors); markers on curves still
+  to do with the router.
 - Optional orthogonal router (cascade first; A* later).
 - Keep routing independent of layout.
 

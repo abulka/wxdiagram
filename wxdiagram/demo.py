@@ -230,10 +230,14 @@ def _populate(canvas):
     shapes.extend([polyline, arrowed])
 
     # -- connections: attached lines, routed via the box perimeters ---------------
-    canvas.join_shapes(client, controller)
+    uses = canvas.join_shapes(client, controller)
+    if uses is not None:
+        uses.AddText("uses")
     canvas.join_shapes(repository, service)
     # vertical relationship: controller bottom -> service top
-    canvas.join_shapes(controller, service)
+    delegates = canvas.join_shapes(controller, service)
+    if delegates is not None:
+        delegates.AddText("delegates")
 
     for caption in captions:
         canvas.InsertShape(caption, 999)
