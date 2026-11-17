@@ -50,6 +50,18 @@ negative diagram coordinates is still reachable. Override it alongside
         return self.box_origin()      # (min_x, min_y)
 ```
 
+## Scrolling speed
+
+```python
+canvas.WHEEL_SCROLL_PIXELS = 20        # Windows/Linux: pixels per notch
+canvas.WHEEL_SCROLL_PIXELS_MACOS = 1.0 # macOS: multiplier on wxOSX deltas
+canvas.WHEEL_MAX_STEP = 80             # clamp for one wheel event
+```
+
+> macOS is special: wxOSX sets the wheel delta to 10 and forwards the precise
+> trackpad deltas, so they are already close to pixels.  Do not scale them by
+> the notch size or trackpad scrolling becomes ~20× too fast.
+
 ## Grid and alignment guides
 
 ```python

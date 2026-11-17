@@ -1256,8 +1256,14 @@ class ShapeCanvas(ScrolledWindow):
     ZOOM_ANCHOR_CENTER = "center"
     #: bounds margin (px) added to the virtual canvas size
     CANVAS_MARGIN = 20
-    #: pixels scrolled per wheel notch (wx already reports the OS scroll direction)
+    #: pixels scrolled per wheel notch on Windows/Linux (they report notch units)
     WHEEL_SCROLL_PIXELS = 20
+    #: multiplier for macOS, where wxOSX sets wheel delta to 10 and reports
+    #: precise (pixel-ish) trackpad deltas - normalising by delta over-scrolls
+    WHEEL_SCROLL_PIXELS_MACOS = 1.0
+    #: largest movement a single wheel event may cause, so a fast flick cannot
+    #: throw the view across the diagram
+    WHEEL_MAX_STEP = 80
     #: pixels of movement before a canvas drag becomes a pan
     PAN_START_THRESHOLD = 3
     #: pixels of movement before a shape drag/resize starts (classic OGL uses 3)
@@ -1296,7 +1302,8 @@ class ShapeCanvas(ScrolledWindow):
         self._hover_shape = None  # shape whose ports are shown as drag targets
         self.scalex = 1.0
         self.scaley = 1.0
-        self._scroll_remainder = 0.0  # fractional wheel scrolling for trackpads
+        self._scroll_remainder_x = 0.0  # fractional wheel scrolling (trackpads)
+        self._scroll_remainder_y = 0.0
         self.defaultKeyBindings = True
         #: automatically recalculate the virtual size after shapes change
         self.autoVirtualSize = True
@@ -2665,10 +2672,9 @@ class ShapeCanvas(ScrolledWindow):
             event.Skip()
             return
 
-        delta = event.GetWheelDelta() or 120
-        rotation = event.GetWheelRotation() / delta
-
         if event.ControlDown():
+            delta = event.GetWheelDelta() or 120
+            rotation = event.GetWheelRotation() / delta
             # Anchor on the exact wheel position rather than the global mouse
             # position: they can differ, and the latter makes the zoom drift.
             position = event.GetPosition()
@@ -2678,20 +2684,42 @@ class ShapeCanvas(ScrolledWindow):
                 self.ZoomOut(self.ZOOM_WHEEL_STEP, anchor=position)
             return
 
-        # Plain wheel: scroll.  Accumulate fractional rotation so high-resolution
-        # trackpad events move smoothly instead of being truncated to zero, and do
-        # not multiply by GetLinesPerAction() - that made mac trackpads too fast.
-        self._scroll_remainder += rotation * self.WHEEL_SCROLL_PIXELS
-        amount = int(self._scroll_remainder)
-        self._scroll_remainder -= amount
-        sx, sy = self.GetViewStart()
+        # Plain wheel: scroll, accumulating the fractional part per axis so
+        # high-resolution trackpad events move smoothly instead of being
+        # truncated to zero.
+        step = self._wheel_scroll_step(event)
         if (
             getattr(event, "GetWheelAxis", lambda: wx.MOUSE_WHEEL_VERTICAL)()
             == wx.MOUSE_WHEEL_VERTICAL
         ):
+            self._scroll_remainder_y += step
+            amount = int(self._scroll_remainder_y)
+            self._scroll_remainder_y -= amount
+            sx, sy = self.GetViewStart()
             self.Scroll(sx, sy - amount)
         else:
+            self._scroll_remainder_x += step
+            amount = int(self._scroll_remainder_x)
+            self._scroll_remainder_x -= amount
+            sx, sy = self.GetViewStart()
             self.Scroll(sx + amount, sy)
+
+    def _wheel_scroll_step(self, event):
+        """Pixels to scroll for one wheel event (clamped for fast flicks).
+
+        wxOSX sets the wheel delta to 10 and reports the precise NSEvent
+        scrolling deltas, which are already close to pixels.  Dividing by the
+        delta there (as Windows/Linux notch events need) multiplied every
+        trackpad event by 20 and made scrolling far too fast.
+        """
+        rotation = event.GetWheelRotation()
+        if wx.Platform == "__WXMAC__":
+            step = rotation * self.WHEEL_SCROLL_PIXELS_MACOS
+        else:
+            delta = event.GetWheelDelta() or 120
+            step = rotation / delta * self.WHEEL_SCROLL_PIXELS
+        limit = self.WHEEL_MAX_STEP
+        return max(-limit, min(limit, step))
 
     def OnMagnify(self, event):
         """macOS trackpad pinch: zoom anchored at the pinch position."""

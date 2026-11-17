@@ -72,6 +72,11 @@ pynsource canvas needs, without pulling any application code into the library.
   Export PNG.
 - `bufferedPainting` opts into `wx.AutoBufferedPaintDC` (with
   `BG_STYLE_PAINT`) to reduce flicker on platforms that do not composite.
+- macOS scrolling is no longer over-sensitive: wxOSX sets the wheel delta to 10
+  and reports precise trackpad deltas, so normalising by the delta multiplied
+  every event by 20.  macOS now scrolls by the reported deltas directly
+  (`WHEEL_SCROLL_PIXELS_MACOS`), a single event is clamped to `WHEEL_MAX_STEP`,
+  and x/y fractional remainders accumulate separately.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

@@ -461,8 +461,35 @@ def test_trackpad_fractional_scroll_accumulates(wx_app):
     canvas.SetScrollbars(1, 1, 4000, 4000, 500, 400)
     wx.Yield()
 
-    canvas.OnMouseWheel(_wheel_event(wx.Point(100, 100), -60))
-    assert canvas.GetViewStart()[1] == 410  # half a notch -> 10px
-    canvas.OnMouseWheel(_wheel_event(wx.Point(100, 100), -60))
-    assert canvas.GetViewStart()[1] == 420
+    if wx.Platform == "__WXMAC__":
+        canvas.WHEEL_SCROLL_PIXELS_MACOS = 0.5
+        rotation = -21  # 10.5 px per event
+    else:
+        canvas.WHEEL_SCROLL_PIXELS = 20
+        rotation = -63  # -63/120*20 = 10.5 px per event
+
+    canvas.OnMouseWheel(_wheel_event(wx.Point(100, 100), rotation))
+    assert canvas.GetViewStart()[1] == 410  # 10 px applied, .5 kept
+    canvas.OnMouseWheel(_wheel_event(wx.Point(100, 100), rotation))
+    assert canvas.GetViewStart()[1] == 421
+    frame.Destroy()
+
+
+def test_wheel_step_is_pixel_sized_on_macos(wx_app):
+    """wxOSX reports pixel-ish scrolling deltas, so they must not be multiplied."""
+    frame, canvas = _make_canvas(wx_app)
+    event = _wheel_event(wx.Point(100, 100), 12)
+    if wx.Platform == "__WXMAC__":
+        canvas.WHEEL_SCROLL_PIXELS_MACOS = 1.0
+        assert canvas._wheel_scroll_step(event) == 12
+    else:
+        canvas.WHEEL_SCROLL_PIXELS = 20
+        assert canvas._wheel_scroll_step(event) == 2  # 12/120*20
+    frame.Destroy()
+
+
+def test_wheel_step_is_clamped(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    event = _wheel_event(wx.Point(100, 100), 10000)
+    assert canvas._wheel_scroll_step(event) == canvas.WHEEL_MAX_STEP
     frame.Destroy()
