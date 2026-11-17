@@ -914,7 +914,8 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             obstacles,
             spread=self._lane_offset(),
             prefer_curve=self.autoRoute == "curved",
-            start_axis=self._endpoint_axis(start, self._from),
+            start_normal=self._endpoint_normal(start, self._from),
+            end_normal=self._endpoint_normal(end, self._to),
         )
         if len(points) != len(self._lineControlPoints):
             self.MakeLineControlPoints(len(points))
@@ -967,21 +968,17 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         self._sync_xy_from_control_points()
 
     @staticmethod
-    def _endpoint_axis(point, shape):
-        """Which shape side a clipped endpoint sits on: ``"h"`` or ``"v"``.
-
-        ``"h"`` means a vertical side (left/right), so the edge should leave
-        horizontally; ``"v"`` means top/bottom, so it leaves vertically.
-        """
-        if (
-            not isinstance(shape, RectangleShape)
-            or len(shape.x) != 2
-            or len(shape.y) != 2
-        ):
+    def _endpoint_normal(point, shape):
+        """Outward normal of the shape side the clipped endpoint sits on."""
+        if not isinstance(shape, RectangleShape) or len(shape.x) != 2 or len(shape.y) != 2:
             return None
-        dx = min(abs(point[0] - shape.x[0]), abs(point[0] - shape.x[1]))
-        dy = min(abs(point[1] - shape.y[0]), abs(point[1] - shape.y[1]))
-        return "h" if dx <= dy else "v"
+        distances = (
+            (abs(point[0] - shape.x[0]), (-1.0, 0.0)),
+            (abs(point[0] - shape.x[1]), (1.0, 0.0)),
+            (abs(point[1] - shape.y[0]), (0.0, -1.0)),
+            (abs(point[1] - shape.y[1]), (0.0, 1.0)),
+        )
+        return min(distances, key=lambda item: item[0])[1]
 
     def _lane_offset(self, spacing=14.0):
         """Sideways offset for parallel edges between the same two shapes."""

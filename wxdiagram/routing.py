@@ -20,6 +20,9 @@ ROUTE_PADDING = 4.0
 ROUTE_BEND = 48.0
 #: Samples used to test a quadratic curve against obstacles.
 CURVE_SAMPLES = 16
+#: Short perpendicular stub before an orthogonal route turns, so it does not
+#: run along the shape's own side.
+ORTHOGONAL_STUB = 10.0
 
 
 def segment_intersects_rect(p1, p2, rect, padding=0.0):
@@ -87,7 +90,8 @@ def route_edge(
     bend=ROUTE_BEND,
     spread=0.0,
     prefer_curve=False,
-    start_axis=None,
+    start_normal=None,
+    end_normal=None,
 ):
     """Route an edge from ``p1`` to ``p2`` avoiding ``obstacles``.
 
@@ -102,6 +106,10 @@ def route_edge(
     edges between the same pair of shapes do not overlap.  For a straight edge
     both endpoints move (along the shape sides); for the other styles only the
     interior points move, keeping the perimeter attachment exact.
+
+    ``start_normal`` / ``end_normal`` are the outward side normals at the two
+    endpoints (used by the orthogonal fallback so the edge leaves perpendicular
+    to the shape side instead of running along it).
     """
     p1 = (float(p1[0]), float(p1[1]))
     p2 = (float(p2[0]), float(p2[1]))
@@ -127,9 +135,7 @@ def route_edge(
             + [points[-1]]
         )
 
-    if not prefer_curve and (
-        not obstacles or _polyline_clear([p1, p2], obstacles, padding)
-    ):
+    if not prefer_curve and (not obstacles or _polyline_clear([p1, p2], obstacles, padding)):
         return spread_points([p1, p2], "straight"), "straight"
 
     # A gentle free curve first when the caller wants curved edges; the larger
@@ -155,38 +161,58 @@ def route_edge(
                 2.0 * on_curve[0] - mid[0],
                 2.0 * on_curve[1] - mid[1],
             )
-            if not obstacles or _polyline_clear(
-                _quadratic(p1, control, p2), obstacles, padding
-            ):
+            if not obstacles or _polyline_clear(_quadratic(p1, control, p2), obstacles, padding):
                 return spread_points([p1, on_curve, p2], "curved"), "curved"
 
-    # Orthogonal fallback: an L-ish route through a clear lane.  The lane runs
-    # across the edge; ``start_axis`` is the normal of the start attachment
-    # ("h" = leaves a vertical side), so the edge leaves along the side normal
-    # instead of cutting across the shape edge.  If no lane of that orientation
-    # clears, try the other one before giving up.
-    preferred_horizontal = abs(dx) >= abs(dy)
-    if start_axis == "h":
-        preferred_horizontal = False
-    elif start_axis == "v":
-        preferred_horizontal = True
-    orientations = [preferred_horizontal]
-    if start_axis in ("h", "v"):
-        orientations.append(not preferred_horizontal)
+    # Orthogonal fallback.  Leave each shape along its attachment normal for a
+    # short stub, so the edge never runs along the box side, then pick the
+    # shortest clear L/Z route whose lanes sit just outside the obstacles.
+    stub = ORTHOGONAL_STUB
+    s = (p1[0] + start_normal[0] * stub, p1[1] + start_normal[1] * stub) if start_normal else p1
+    e = (p2[0] + end_normal[0] * stub, p2[1] + end_normal[1] * stub) if end_normal else p2
+    mid_x = (s[0] + e[0]) / 2.0
+    mid_y = (s[1] + e[1]) / 2.0
+    lane_x = {mid_x}
+    lane_y = {mid_y}
+    for left, top, right, bottom in obstacles:
+        lane_x.update((left - padding - 1.0, right + padding + 1.0))
+        lane_y.update((top - padding - 1.0, bottom + padding + 1.0))
 
-    for lane_is_horizontal in orientations:
-        for distance in (bend, bend * 2.0, bend * 3.0, bend * 4.0):
-            for sign in (1.0, -1.0):
-                if lane_is_horizontal:
-                    lane_y = mid[1] + distance * sign
-                    points = [p1, (p1[0], lane_y), (p2[0], lane_y), p2]
-                else:
-                    lane_x = mid[0] + distance * sign
-                    points = [p1, (lane_x, p1[1]), (lane_x, p2[1]), p2]
-                if _polyline_clear(points, obstacles, padding):
-                    return spread_points(points, "orthogonal"), "orthogonal"
+    candidates = []
+    for x in lane_x:
+        candidates.append([s, (x, s[1]), (x, e[1]), e])
+    for y in lane_y:
+        candidates.append([s, (s[0], y), (e[0], y), e])
+    candidates.append([s, (e[0], s[1]), e])
+    candidates.append([s, (s[0], e[1]), e])
+
+    best = None
+    best_length = None
+    for points in candidates:
+        if not _polyline_clear(points, obstacles, padding):
+            continue
+        length = sum(
+            math.hypot(second[0] - first[0], second[1] - first[1])
+            for first, second in zip(points, points[1:])
+        )
+        if best_length is None or length < best_length:
+            best = points
+            best_length = length
+
+    if best is not None:
+        full = []
+        for point in [p1] + best + [p2]:
+            if not full or point != full[-1]:
+                full.append(point)
+        return spread_points(full, "orthogonal"), "orthogonal"
 
     return spread_points([p1, p2], "straight"), "straight"
 
 
-__all__ = ["route_edge", "segment_intersects_rect", "ROUTE_BEND", "ROUTE_PADDING"]
+__all__ = [
+    "route_edge",
+    "segment_intersects_rect",
+    "ROUTE_BEND",
+    "ROUTE_PADDING",
+    "ORTHOGONAL_STUB",
+]

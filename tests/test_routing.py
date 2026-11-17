@@ -167,17 +167,21 @@ def test_autoroute_survives_repeated_link_updates(wx_app):
     frame.Destroy()
 
 
-def test_orthogonal_route_leaves_along_the_start_side_normal():
-    # A tall wall blocks straight and curved routes; the only clear lanes are
-    # horizontal, so the start-axis preference falls back gracefully.
+def test_orthogonal_route_uses_side_normal_stubs():
+    # A tall wall blocks straight and curved routes.
     obstacle = (80, -150, 120, 150)
 
-    vertical, style = route_edge((0, 0), (200, 0), [obstacle], start_axis="v")
-    assert style == "orthogonal"
-    assert vertical[1][0] == pytest.approx(0.0)  # first segment is vertical
+    points, style = route_edge(
+        (0, 0), (200, 0), [obstacle], start_normal=(-1, 0), end_normal=(1, 0)
+    )
 
-    horizontal, style = route_edge((0, 0), (200, 0), [obstacle], start_axis="h")
-    assert style == "orthogonal"  # preferred lanes blocked, fallback used
+    assert style == "orthogonal"
+    assert points[0] == (0.0, 0.0)
+    assert points[1] == (-10.0, 0.0)  # stub away from the start side
+    assert points[-2] == (210.0, 0.0)  # stub away from the end side
+    assert points[-1] == (200.0, 0.0)
+    for first, second in zip(points, points[1:]):
+        assert not segment_intersects_rect(first, second, obstacle, padding=4)
 
 
 def test_route_mode_round_trip(wx_app):

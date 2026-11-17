@@ -93,9 +93,10 @@ pynsource canvas needs, without pulling any application code into the library.
 - `LineShape.SetRouteMode("straight" | "avoid" | "curved")` /
   `GetRouteMode()` switch an edge's style at runtime; the demo's right-click
   menu does this per edge.
-- Orthogonal routes leave along the start side's normal (so an edge on the
-  left/right of a box does not cut across the side edge) and fall back to the
-  other lane orientation when boxes block it.
+- Orthogonal routes leave each shape along its attachment side's normal for a
+  10-unit stub (so an edge no longer runs along or inside the box side), then
+  take the shortest clear lane just outside the obstacles instead of an
+  arbitrary bend multiple.
 - Fixed a pen leak: an edge with a label (or a dashed pen) left a transparent
   or dashed pen on the dc, which made later edges invisible or dashed.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
