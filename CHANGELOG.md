@@ -34,7 +34,11 @@ pynsource canvas needs, without pulling any application code into the library.
 - Demo shape insertion now repaints immediately instead of waiting for mouse motion.
 - `ResizableRectangleShape` (selectable/resizable plain rectangle) and
   `SelectableTextShape` (movable captions) added.
-- `ResizableBitmapShape` now resizes the bitmap when dragged by a handle.
+- `ResizableBitmapShape` now resizes when dragged by a handle and draws the
+  original bitmap stretched in one blit, so high-resolution images keep up
+  with the mouse instead of being rescaled on every motion.
+- Resize handles stay under the cursor during a drag (hit-testing no longer
+  lags behind the shape).
 - Demo uses the sample photograph at `examples/assets/sample-image.jpg`;
   rectangles are resizable and captions are movable.
 - `Block.OnRightDown` no longer pops a debug message box (right-click menus are

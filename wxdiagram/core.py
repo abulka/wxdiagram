@@ -3283,10 +3283,18 @@ class ResizeableNode(Node):
             # LineShape keeps its geometry in control points; it has already
             # updated x/y from them, so do not move x/y again.
             item.MoveLinks(dc=None)
+            self._sync_to_item()
             return
         item.x[self.index] += x
         item.y[self.index] += y
         item.MoveLinks(dc=None)
+        self._sync_to_item()
+
+    def _sync_to_item(self):
+        """Keep the handle under the mouse while dragging (hit-testing uses graphic)."""
+        item = self.item
+        if self.index < len(item.x) and self.index < len(item.y):
+            self.moveto(item.x[self.index], item.y[self.index])
 
     def leftUp(self, selected_ResizableNodes):  # ANDY ADDED
         """when resize finishes, simulate wx.ogl event of same name"""

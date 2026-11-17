@@ -283,12 +283,11 @@ def test_resizable_bitmap_shape(wx_app):
     shape.SetBitmap(wx.Bitmap(image))
 
     shape.SetSize(20, 15)
-    assert shape.GetBitmap().GetWidth() == 20
-    assert shape.GetBitmap().GetHeight() == 15
+    assert shape.GetBoundingBoxMin() == (20, 15)
+    assert (shape.x[1] - shape.x[0], shape.y[1] - shape.y[0]) == (20, 15)
 
     shape.ResetSize()
-    assert shape.GetBitmap().GetWidth() == 40
-    assert shape.GetBitmap().GetHeight() == 30
+    assert shape.GetBoundingBoxMin() == (40, 30)
 
 
 def test_resizable_rectangle_selection_creates_handles(wx_app):
@@ -311,8 +310,7 @@ def test_bitmap_handle_resizes_bitmap(wx_app):
     shape.SetSize(40, 30)
 
     shape.move_handle(1, 20, 10)
-    assert shape.GetBitmap().GetWidth() == 60
-    assert shape.GetBitmap().GetHeight() == 40
+    assert shape.GetBoundingBoxMin() == (60, 40)
 
 
 def test_selectable_text_can_be_selected_and_moved(wx_app):

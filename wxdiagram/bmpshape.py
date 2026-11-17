@@ -111,21 +111,39 @@ class ResizableBitmapShape(BitmapShape):
             self.SetSize(self._ori_bmp.GetWidth(), self._ori_bmp.GetHeight())
 
     def SetSize(self, w, h, recursive=True):
-        if self._bitmap.IsOk():
-            base = self._ori_bmp or self._bitmap
-            w = max(1, int(w))
-            h = max(1, int(h))
-            if self._bitmap.GetWidth() != w or self._bitmap.GetHeight() != h:
-                img = base.ConvertToImage()
-                adjusted = img.Rescale(w, h, wx.IMAGE_QUALITY_HIGH)
-                self._bitmap = wx.Bitmap(adjusted)
-            w = self._bitmap.GetWidth()
-            h = self._bitmap.GetHeight()
-
+        w = max(1, int(w))
+        h = max(1, int(h))
+        # Keep the geometry authoritative; draw() stretches the original bitmap
+        # in one blit.  Rescaling the bitmap on every mouse-move was slow and
+        # made the image lag behind the cursor.
+        self.x = [self.x[0], self.x[0] + w]
+        self.y = [self.y[0], self.y[0] + h]
         self.SetAttachmentSize(w, h)
         self._width = w
         self._height = h
         self.SetDefaultRegionSize()
+
+    def draw(self, dc):
+        if not self._ori_bmp or not self._ori_bmp.IsOk():
+            return
+        x1, y1 = int(self.x[0]), int(self.y[0])
+        width = max(1, int(self.x[1] - self.x[0]))
+        height = max(1, int(self.y[1] - self.y[0]))
+        source = wx.MemoryDC(self._ori_bmp)
+        try:
+            dc.StretchBlit(
+                x1,
+                y1,
+                width,
+                height,
+                source,
+                0,
+                0,
+                self._ori_bmp.GetWidth(),
+                self._ori_bmp.GetHeight(),
+            )
+        finally:
+            source.SelectObject(wx.NullBitmap)
 
     def SetBitmap(self, bitmap):
         BitmapShape.SetBitmap(self, bitmap)
