@@ -259,7 +259,8 @@ class DemoFrame(wx.Frame):
         self.CreateStatusBar()
         self.SetStatusText(
             "Drag empty = marquee | Shift/Ctrl add | Alt/Space/middle drag = pan | "
-            "Corner resize = proportional (Shift = free) | Ctrl+wheel zoom | "
+            "Corner resize = proportional (Shift = free, Alt = centre) | "
+            "Ctrl+wheel zoom | "
             "Ctrl+Z undo | Ctrl+D duplicate | Del delete"
         )
 

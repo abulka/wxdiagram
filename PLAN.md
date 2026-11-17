@@ -265,7 +265,7 @@ Source reference: `/Users/andy/Devel/shape-studio/src/ui/canvas.rs`,
 `src/shape.rs`, `src/app.rs`.
 
 - ✅ 8 resize handles; ✅ proportional resize by default, Shift = free;
-  Alt = resize from centre (still to do).
+  ✅ Alt = resize from centre.
 - Marquee selection; Shift/Ctrl add; Esc clear; arrow-key nudge.
 - Grid + alignment guides.
 - Undo/redo (snapshot or command pattern).

@@ -18,7 +18,7 @@ def _make_canvas(wx_app):
     return frame, canvas
 
 
-def _event(canvas, wx_type, diagram_xy, down=False, shift=False, control=False):
+def _event(canvas, wx_type, diagram_xy, down=False, shift=False, control=False, alt=False):
     client = canvas.diagram_point_to_client_coords(*diagram_xy)
     e = wx.MouseEvent(wx_type)
     e.SetPosition(wx.Point(int(client[0]), int(client[1])))
@@ -31,6 +31,8 @@ def _event(canvas, wx_type, diagram_xy, down=False, shift=False, control=False):
         e.SetShiftDown(True)
     if control:
         e.SetControlDown(True)
+    if alt:
+        e.SetAltDown(True)
     return e
 
 
@@ -516,6 +518,80 @@ def test_bitmap_edge_handle_resizes_one_axis(wx_app):
     assert shape.GetBoundingBoxMin() == (60, 30)
     shape.move_handle(4, -10, 0)  # left edge
     assert shape.GetBoundingBoxMin() == (70, 30)
+
+
+def test_alt_resize_grows_from_the_centre(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)  # 200 x 100
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
+    canvas.OnMotion(
+        _event(canvas, wx.wxEVT_MOTION, (shape.x[1] + 20, shape.y[1] + 5), down=True, alt=True)
+    )
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(240)  # both sides grow by the 20px delta
+    assert height == pytest.approx(120)  # proportional
+    assert (shape.x[0] + shape.x[1]) / 2 == pytest.approx(200)  # centre fixed
+    assert (shape.y[0] + shape.y[1]) / 2 == pytest.approx(150)
+    frame.Destroy()
+
+
+def test_alt_shift_resize_from_centre_frees_aspect(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
+    canvas.OnMotion(
+        _event(
+            canvas,
+            wx.wxEVT_MOTION,
+            (shape.x[1] + 20, shape.y[1] + 5),
+            down=True,
+            alt=True,
+            shift=True,
+        )
+    )
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(240)
+    assert height == pytest.approx(110)  # each side follows its own axis
+    frame.Destroy()
+
+
+def test_tiny_drag_does_not_move_a_shape(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.RectangleShape(100, 100, 300, 200)
+    canvas.AddShape(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (200, 150), down=True))
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (202, 151), down=True))
+    assert shape.x == [100, 300]  # inside the 3px tolerance
+
+    # Crossing the threshold applies the whole delta from the press point.
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (210, 150), down=True))
+    assert shape.x == [110, 310]
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, (210, 150)))
+    frame.Destroy()
+
+
+def test_tiny_drag_does_not_resize(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (300, 200), down=True))
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (301, 201), down=True))
+    assert shape.GetBoundingBoxMin() == (200, 100)
+
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (310, 205), down=True))
+    assert shape.GetBoundingBoxMin() == (210, 105)
+    frame.Destroy()
 
 
 def test_selectable_text_can_be_selected_and_moved(wx_app):

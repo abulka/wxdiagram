@@ -55,6 +55,9 @@ pynsource canvas needs, without pulling any application code into the library.
   edge midpoints.  Edge handles resize a single axis; corners stay proportional.
 - A resize finishes wherever the mouse is released, so the shape (not the
   invisible handle) stays selected when the pointer leaves the handle.
+- Alt while dragging a resize handle grows/shrinks the shape from its centre.
+- Shape drags and resizes ignore pointer movement below `DRAG_TOLERANCE`
+  (3 px), so a click with a small hand tremor no longer nudges the shape.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

@@ -1231,6 +1231,8 @@ class ShapeCanvas(ScrolledWindow):
     WHEEL_SCROLL_PIXELS = 20
     #: pixels of movement before a canvas drag becomes a pan
     PAN_START_THRESHOLD = 3
+    #: pixels of movement before a shape drag/resize starts (classic OGL uses 3)
+    DRAG_TOLERANCE = 3
     #: raise a shape to the top when it is clicked
     bringClickedShapeToFront = True
     #: what a plain left-drag on empty canvas does: draw a marquee or pan
@@ -1305,6 +1307,9 @@ class ShapeCanvas(ScrolledWindow):
         self._dragState = NoDragging
         self._draggedShape = None
         self._drag_free_aspect = False
+        self._drag_from_center = False
+        self._drag_start_client = None
+        self._drag_started = False
         self._dragging_resize_node = None
         ####
 
@@ -1954,6 +1959,10 @@ class ShapeCanvas(ScrolledWindow):
         If no shape, deselect all.
         """
         shape = self.getCurrentShape(event)
+        # Remember where the drag started so tiny mouse tremors do not move or
+        # resize anything (classic OGL waits DRAG_TOLERANCE pixels).
+        self._drag_start_client = event.GetPosition() if hasattr(event, "GetPosition") else None
+        self._drag_started = False
         # Hover-shown ports have done their job once something is clicked:
         # the clicked node object is already in hand, so drop the hover set.
         self._clear_hover_ports()
@@ -2028,6 +2037,7 @@ class ShapeCanvas(ScrolledWindow):
             return
         resize_node = self._dragging_resize_node
         self._dragging_resize_node = None
+        self._drag_started = False
         try:
             # Hit-test before refreshing the bounds: moving content to negative
             # coordinates changes the scroll origin, and re-deriving it first
@@ -2087,6 +2097,21 @@ class ShapeCanvas(ScrolledWindow):
                 self.diagram.DeleteShape(shape)
                 self.deselect()  # delete associated Nodes that were attached to the ConnectionShape
 
+    def _dragged_past_tolerance(self, event):
+        """True once the pointer has moved far enough to start a drag.
+
+        A click with a small hand tremor should not nudge a shape or resize it.
+        Events without a position (scripted/fake events) always count as a drag.
+        """
+        get_position = getattr(event, "GetPosition", None)
+        if get_position is None or self._drag_start_client is None:
+            return True
+        position = get_position()
+        return (
+            abs(position.x - self._drag_start_client.x) >= self.DRAG_TOLERANCE
+            or abs(position.y - self._drag_start_client.y) >= self.DRAG_TOLERANCE
+        )
+
     def OnMotion(self, event):
         """Calls move() on anything that is selected.  When resizing, a ResizeNode will be selected.
         When creating a connecting line, initially an ONode is selected (due to an initial OnLeftDown)
@@ -2102,8 +2127,14 @@ class ShapeCanvas(ScrolledWindow):
             self._update_hover_ports(event)
             return
         # Corner resizes are proportional by default; Shift frees the aspect
-        # ratio.  Resize nodes read this while dragging.
+        # ratio and Alt resizes from the shape's centre.  Resize nodes read
+        # these while dragging.
         self._drag_free_aspect = bool(getattr(event, "ShiftDown", lambda: False)())
+        self._drag_from_center = bool(getattr(event, "AltDown", lambda: False)())
+        if not self._drag_started:
+            if not self._dragged_past_tolerance(event):
+                return
+            self._drag_started = True
         point = self.getEventCoordinates(event)
         x = point[0] - self.currentPoint[0]
         y = point[1] - self.currentPoint[1]
@@ -3351,15 +3382,16 @@ RECT_HANDLES = (
 )
 
 
-def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
+def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False, from_center=False):
     """Resize a two-point rectangle by dragging the handle at ``index``.
 
     ``index`` selects a corner or an edge from :data:`RECT_HANDLES`.  The
     opposite corner/edge stays fixed, the size is clamped to one unit instead
     of inverting, and corner drags are proportional unless ``free_aspect`` is
     set (driven by whichever axis moved further).  Edge drags change one axis
-    only.  Used by ``ResizeableNode`` for rectangle shapes and by
-    ``ResizableBitmapShape.move_handle``.
+    only.  ``from_center`` grows/shrinks both sides symmetrically instead of
+    anchoring the opposite corner.  Used by ``ResizeableNode`` for rectangle
+    shapes and by ``ResizableBitmapShape.move_handle``.
     """
     if len(shape.x) != 2 or len(shape.y) != 2:
         shape.x[index] += dx
@@ -3369,15 +3401,21 @@ def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
     xi, yi = RECT_HANDLES[index] if 0 <= index < len(RECT_HANDLES) else (1, 1)
     old_width = abs(shape.x[1] - shape.x[0])
     old_height = abs(shape.y[1] - shape.y[0])
+    center_x = (shape.x[0] + shape.x[1]) / 2.0
+    center_y = (shape.y[0] + shape.y[1]) / 2.0
     width = old_width
     height = old_height
 
+    # Resizing from the centre moves both sides, so the same mouse delta
+    # changes the size twice as much.
+    factor = 2.0 if from_center else 1.0
+
     if xi is not None:
         sign = 1.0 if xi == 1 else -1.0
-        width = max(1.0, old_width + sign * dx)
+        width = max(1.0, old_width + sign * dx * factor)
     if yi is not None:
         sign = 1.0 if yi == 1 else -1.0
-        height = max(1.0, old_height + sign * dy)
+        height = max(1.0, old_height + sign * dy * factor)
 
     if not free_aspect and xi is not None and yi is not None and old_width > 0 and old_height > 0:
         ratio = old_width / old_height
@@ -3387,9 +3425,17 @@ def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
             width = max(1.0, height * ratio)
 
     if xi is not None:
-        shape.x[0 if xi == 0 else 1] = shape.x[1] - width if xi == 0 else shape.x[0] + width
+        if from_center:
+            shape.x[0] = center_x - width / 2.0
+            shape.x[1] = center_x + width / 2.0
+        else:
+            shape.x[0 if xi == 0 else 1] = shape.x[1] - width if xi == 0 else shape.x[0] + width
     if yi is not None:
-        shape.y[0 if yi == 0 else 1] = shape.y[1] - height if yi == 0 else shape.y[0] + height
+        if from_center:
+            shape.y[0] = center_y - height / 2.0
+            shape.y[1] = center_y + height / 2.0
+        else:
+            shape.y[0 if yi == 0 else 1] = shape.y[1] - height if yi == 0 else shape.y[0] + height
 
 
 class ResizeableNode(Node):
@@ -3472,9 +3518,10 @@ class ResizeableNode(Node):
         # Proportional by default: Shift frees the aspect ratio.  OnMotion
         # records the modifier for us.
         free_aspect = bool(getattr(self.cf, "_drag_free_aspect", False))
+        from_center = bool(getattr(self.cf, "_drag_from_center", False))
         move_handle = getattr(item, "move_handle", None)
         if move_handle is not None:
-            if move_handle(self.index, x, y, free_aspect=free_aspect):
+            if move_handle(self.index, x, y, free_aspect=free_aspect, from_center=from_center):
                 # LineShape keeps its geometry in control points; it has already
                 # updated x/y from them, so do not move x/y again.
                 item.MoveLinks(dc=None)
@@ -3483,7 +3530,7 @@ class ResizeableNode(Node):
         elif _is_two_point_rect(item):
             # Corner drag: keep the opposite corner fixed and never invert the
             # rectangle, which used to trip RectangleShape.sanity() on hit-test.
-            resize_rect_from_handle(item, self.index, x, y, free_aspect)
+            resize_rect_from_handle(item, self.index, x, y, free_aspect, from_center)
             item.MoveLinks(dc=None)
             self._sync_to_item()
             return

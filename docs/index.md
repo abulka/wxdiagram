@@ -19,8 +19,8 @@ attribution.
   `ZoomToFit`, `CenterOn`; Ctrl+wheel and macOS pinch zoom anchored at the
   pointer; drag empty canvas to pan; mouse-wheel scrolling.
 - **Selection and handles** — shift-click multi-select, eight resize handles
-  (corners + edges; proportional corners by default, Shift = free aspect),
-  hover ports, drag port-to-shape to connect.
+  (corners + edges; corners proportional by default, Shift = free aspect,
+  Alt = from centre), hover ports, drag port-to-shape to connect.
 - **Connectors** — attached lines clipped to shape perimeters, arrowheads,
   splines, dashed pens, and bend control points.
 - **Shapes** — rectangles, ellipses, polygons, points, lines, bitmaps, divided
