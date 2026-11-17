@@ -1304,6 +1304,7 @@ class ShapeCanvas(ScrolledWindow):
         # ANDY ADDED ###
         self._dragState = NoDragging
         self._draggedShape = None
+        self._drag_shift = False
         ####
 
     def _bounds_changed(self):
@@ -2064,6 +2065,8 @@ class ShapeCanvas(ScrolledWindow):
         if not event.Dragging():
             self._update_hover_ports(event)
             return
+        # Resize nodes read this to constrain corner drags to the aspect ratio.
+        self._drag_shift = bool(getattr(event, "ShiftDown", lambda: False)())
         point = self.getEventCoordinates(event)
         x = point[0] - self.currentPoint[0]
         y = point[1] - self.currentPoint[1]
@@ -3249,12 +3252,53 @@ class ONode(ConnectableNode):
         PointShape.draw(self, dc)
 
 
+def resize_rect_from_handle(shape, index, dx, dy, shift=False):
+    """Resize a two-point rectangle by dragging the corner at ``index``.
+
+    The corner opposite the dragged one stays fixed, the size is clamped to one
+    unit instead of inverting, and ``shift`` preserves the current aspect ratio
+    (driven by whichever axis moved further).  Used by ``ResizeableNode`` for
+    rectangle shapes and by ``ResizableBitmapShape.move_handle``.
+    """
+    if len(shape.x) != 2 or len(shape.y) != 2:
+        shape.x[index] += dx
+        shape.y[index] += dy
+        return
+
+    other = 0 if index == 1 else 1
+    sign = 1.0 if index > other else -1.0
+    old_width = abs(shape.x[other] - shape.x[index])
+    old_height = abs(shape.y[other] - shape.y[index])
+    width = max(1.0, old_width + sign * dx)
+    height = max(1.0, old_height + sign * dy)
+
+    if shift and old_width > 0 and old_height > 0:
+        ratio = old_width / old_height
+        if abs(width - old_width) >= abs(height - old_height):
+            height = max(1.0, width / ratio)
+        else:
+            width = max(1.0, height * ratio)
+
+    if index < other:
+        shape.x[index] = shape.x[other] - width
+        shape.y[index] = shape.y[other] - height
+    else:
+        shape.x[index] = shape.x[other] + width
+        shape.y[index] = shape.y[other] + height
+
+
 class ResizeableNode(Node):
     """The small resize node grab handles for resizing shapes"""
 
     def __init__(self, item, index, cf):
         Node.__init__(self, item, index, cf)
         self.fill = ["BLACK"]
+        # Position the handle straight away: hit-testing uses the graphic and
+        # draw() is the only other place that positions it.  Without this a
+        # handle cannot be grabbed between select() and the next paint, so a
+        # click near a corner drags the shape instead of resizing it.
+        if index < len(item.x) and index < len(item.y):
+            self.moveto(item.x[index], item.y[index])
 
     def draw(self, dc):
         item = self.item
@@ -3287,10 +3331,21 @@ class ResizeableNode(Node):
         """
         # print("ResizeableNode move() self.index", self.index)
         item = self.item
+        # Shift during the drag constrains a corner resize to the shape's
+        # current aspect ratio.  OnMotion records the modifier for us.
+        shift = bool(getattr(self.cf, "_drag_shift", False))
         move_handle = getattr(item, "move_handle", None)
-        if move_handle is not None and move_handle(self.index, x, y):
-            # LineShape keeps its geometry in control points; it has already
-            # updated x/y from them, so do not move x/y again.
+        if move_handle is not None:
+            if move_handle(self.index, x, y, shift=shift):
+                # LineShape keeps its geometry in control points; it has already
+                # updated x/y from them, so do not move x/y again.
+                item.MoveLinks(dc=None)
+                self._sync_to_item()
+                return
+        elif isinstance(item, RectangleShape) and len(item.x) == 2 and len(item.y) == 2:
+            # Corner drag: keep the opposite corner fixed and never invert the
+            # rectangle, which used to trip RectangleShape.sanity() on hit-test.
+            resize_rect_from_handle(item, self.index, x, y, shift)
             item.MoveLinks(dc=None)
             self._sync_to_item()
             return

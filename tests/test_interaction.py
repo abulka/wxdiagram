@@ -173,6 +173,24 @@ def test_clicking_line_then_shape_clears_previous_selection(wx_app):
     frame.Destroy()
 
 
+def test_resize_handles_are_hittable_before_the_first_paint(wx_app):
+    """Handles are positioned when created, not only when drawn.
+
+    Otherwise a click that arrives between select() and the next paint misses
+    the handle and drags the shape instead of resizing it.
+    """
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 250)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    # Deliberately no _redraw(): the demo's Refresh() is asynchronous.
+    hit = canvas.shapeFromPoint((shape.x[1], shape.y[1]))
+    assert isinstance(hit, ResizeableNode)
+    assert hit.item is shape
+    frame.Destroy()
+
+
 def _redraw(canvas):
     """Draw offscreen so nodes reposition themselves during a scripted drag."""
     dc = wx.MemoryDC(wx.Bitmap(800, 600))

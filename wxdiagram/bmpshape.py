@@ -18,7 +18,7 @@ The :class:`~lib.ogl.bmpshape.BitmapShape` class.
 
 import wx
 
-from .core import RectangleShape, Selectable, Resizeable
+from .core import RectangleShape, Selectable, Resizeable, resize_rect_from_handle
 
 
 class BitmapShape(RectangleShape, Selectable, Resizeable):  # ANDY
@@ -111,24 +111,26 @@ class ResizableBitmapShape(BitmapShape):
             self.SetSize(self._ori_bmp.GetWidth(), self._ori_bmp.GetHeight())
 
     def SetSize(self, w, h, recursive=True):
-        w = max(1, int(w))
-        h = max(1, int(h))
+        w = max(1.0, float(w))
+        h = max(1.0, float(h))
         # Keep the geometry authoritative; draw() stretches the original bitmap
         # in one blit.  Rescaling the bitmap on every mouse-move was slow and
         # made the image lag behind the cursor.
+        #
+        # Keep the geometry in floats.  Rounding to whole units here loses the
+        # fractional part of every drag delta, which makes the image fall
+        # further behind the mouse at non-integer zoom levels.
+        self.SetAttachmentSize(w, h)
         self.x = [self.x[0], self.x[0] + w]
         self.y = [self.y[0], self.y[0] + h]
-        self.SetAttachmentSize(w, h)
-        self._width = w
-        self._height = h
         self.SetDefaultRegionSize()
 
     def draw(self, dc):
         if not self._ori_bmp or not self._ori_bmp.IsOk():
             return
-        x1, y1 = int(self.x[0]), int(self.y[0])
-        width = max(1, int(self.x[1] - self.x[0]))
-        height = max(1, int(self.y[1] - self.y[0]))
+        x1, y1 = int(round(self.x[0])), int(round(self.y[0]))
+        width = max(1, int(round(self.x[1])) - x1)
+        height = max(1, int(round(self.y[1])) - y1)
         source = wx.MemoryDC(self._ori_bmp)
         try:
             dc.StretchBlit(
@@ -149,13 +151,15 @@ class ResizableBitmapShape(BitmapShape):
         BitmapShape.SetBitmap(self, bitmap)
         self._ori_bmp = bitmap
 
-    def move_handle(self, index, dx, dy):
-        """Resize from a drag handle, keeping the opposite corner fixed."""
-        self.x[index] += dx
-        self.y[index] += dy
-        width = max(1, abs(self.x[1] - self.x[0]))
-        height = max(1, abs(self.y[1] - self.y[0]))
-        self.SetSize(width, height)
+    def move_handle(self, index, dx, dy, shift=False):
+        """Resize from a drag handle, keeping the opposite corner fixed.
+
+        Only the dragged point moves: changing the size and then re-deriving
+        the far edge (as ``SetSize`` does) would re-anchor the shape at its
+        top-left and quantise the drag, so the image lags behind the mouse.
+        ``shift`` keeps the current aspect ratio.
+        """
+        resize_rect_from_handle(self, index, dx, dy, shift)
         return True
 
 

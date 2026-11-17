@@ -39,6 +39,17 @@ pynsource canvas needs, without pulling any application code into the library.
   with the mouse instead of being rescaled on every motion.
 - Resize handles stay under the cursor during a drag (hit-testing no longer
   lags behind the shape).
+- Bitmap resizing keeps its geometry in floats instead of snapping to whole
+  units, so the image tracks the mouse at any zoom level (integer snapping
+  made it fall behind the pointer at fractional zoom, e.g. after zoom-to-fit).
+- Handle positions are set when the handles are created, so a corner can be
+  grabbed immediately after selecting a shape, before the next repaint.
+- A bitmap resize handle stops at the opposite corner instead of flipping the
+  image when dragged past it.
+- Rectangles and blocks behave the same way: dragging a corner past the
+  opposite one clamps instead of inverting the shape (which used to raise an
+  assertion on the next hit-test).
+- Shift while dragging a resize handle keeps the shape's aspect ratio.
 - Clicking a resize handle no longer clears the selection/handles, fixing
   disappearing resize indicators.
 - Demo uses the sample photograph at `examples/assets/sample-image.jpg`;

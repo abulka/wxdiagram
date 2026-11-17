@@ -18,8 +18,9 @@ attribution.
 - **Canvas with real zoom/pan** — `ZoomIn`, `ZoomOut`, `ZoomTo`, `ZoomReset`,
   `ZoomToFit`, `CenterOn`; Ctrl+wheel and macOS pinch zoom anchored at the
   pointer; drag empty canvas to pan; mouse-wheel scrolling.
-- **Selection and handles** — shift-click multi-select, resize handles, hover
-  ports, drag port-to-shape to connect.
+- **Selection and handles** — shift-click multi-select, corner resize handles
+  (Shift keeps the aspect ratio; dragging past the opposite corner clamps),
+  hover ports, drag port-to-shape to connect.
 - **Connectors** — attached lines clipped to shape perimeters, arrowheads,
   splines, dashed pens, and bend control points.
 - **Shapes** — rectangles, ellipses, polygons, points, lines, bitmaps, divided

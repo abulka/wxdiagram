@@ -2,7 +2,10 @@
 
 import wx
 
+import pytest
+
 import wxdiagram
+from wxdiagram.core import ResizeableNode
 
 
 def _make_canvas(wx_app):
@@ -311,6 +314,115 @@ def test_bitmap_handle_resizes_bitmap(wx_app):
 
     shape.move_handle(1, 20, 10)
     assert shape.GetBoundingBoxMin() == (60, 40)
+
+
+def test_bitmap_resize_tracks_mouse_at_fractional_zoom(wx_app):
+    """Resizing must not snap geometry to whole units.
+
+    At a non-integer zoom (the demo starts zoomed to fit) the diagram-space
+    drag delta is fractional.  Truncating the size on every motion event threw
+    that fraction away, so the image fell further and further behind the
+    cursor - and it never caught up.
+    """
+    frame, canvas = _make_canvas(wx_app)
+    zoom = 1.0523
+    canvas.scalex = canvas.scaley = zoom
+
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(wx.Image(200, 150)))
+    shape.move_to(100, 100)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+    start_w, start_h = shape.GetBoundingBoxMin()
+
+    mouse_x, mouse_y = canvas.diagram_point_to_client_coords(shape.x[1], shape.y[1])
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
+    assert isinstance(canvas.getSelectedShapes()[0], ResizeableNode)
+
+    # Small 2px steps: at this zoom each one is less than one diagram unit.
+    for _ in range(20):
+        mouse_x += 2
+        mouse_y += 2
+        point = canvas.client_pos_in_diagram_coords(mouse_x, mouse_y)
+        canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, point, down=True))
+
+    handle_x, handle_y = canvas.diagram_point_to_client_coords(shape.x[1], shape.y[1])
+    assert handle_x == pytest.approx(mouse_x, abs=1.0)
+    assert handle_y == pytest.approx(mouse_y, abs=1.0)
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(start_w + 40 / zoom, abs=0.01)
+    assert height == pytest.approx(start_h + 40 / zoom, abs=0.01)
+    frame.Destroy()
+
+
+def test_bitmap_handle_clamps_at_the_opposite_corner(wx_app):
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(wx.Image(40, 30)))
+    shape.x = [0, 40]
+    shape.y = [0, 30]
+
+    # Drag the top-left handle past the bottom-right one.
+    shape.move_handle(0, 100, 100)
+
+    assert shape.GetBoundingBoxMin() == (1.0, 1.0)
+    assert shape.x == [39.0, 40.0]
+    assert shape.y == [29.0, 30.0]
+    assert shape.HitTest(39.5, 29.5)  # must not trip RectangleShape.sanity()
+
+
+def test_shift_resize_keeps_aspect_ratio(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)  # 200 x 100
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
+    canvas.OnMotion(
+        _event(canvas, wx.wxEVT_MOTION, (shape.x[1] + 40, shape.y[1] + 5), down=True, shift=True)
+    )
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(240)
+    assert height == pytest.approx(120)  # 2:1 kept, driven by the x axis
+    frame.Destroy()
+
+
+def test_shift_resize_keeps_bitmap_aspect_ratio(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(wx.Image(200, 100)))
+    shape.move_to(100, 100)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (shape.x[1], shape.y[1]), down=True))
+    canvas.OnMotion(
+        _event(canvas, wx.wxEVT_MOTION, (shape.x[1] + 40, shape.y[1] + 5), down=True, shift=True)
+    )
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(240)
+    assert height == pytest.approx(120)
+    frame.Destroy()
+
+
+def test_rectangle_handle_clamps_instead_of_inverting(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 250)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    node = next(n for n in canvas.nodes if isinstance(n, ResizeableNode) and n.index == 0)
+    node.move(500, 500)  # drag the top-left handle past the bottom-right one
+
+    assert shape.GetBoundingBoxMin() == (1.0, 1.0)
+    assert shape.x == [299.0, 300.0]
+    assert shape.y == [249.0, 250.0]
+    # Hit-testing calls RectangleShape.sanity(), which used to raise here.
+    assert shape.HitTest(299.5, 249.5)
+    assert canvas.shapeFromPoint((299.5, 249.5)) is not None
+    frame.Destroy()
 
 
 def test_selectable_text_can_be_selected_and_moved(wx_app):

@@ -679,7 +679,7 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             point[1] = point[1] + y
         self._sync_xy_from_control_points()
 
-    def move_handle(self, index, dx, dy):
+    def move_handle(self, index, dx, dy, shift=False):
         """Move one control point (used when dragging a line's handle).
 
         Returns True if the point was moved.
