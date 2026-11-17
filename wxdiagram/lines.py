@@ -21,12 +21,17 @@ from .geometry import (
 from .basic import get_black_foreground_pen
 from .core import LineShapeBase
 from .basic import ShapeRegion, ShapeTextLine
+from . import routing
 
 # local OGL LineShape doesn't have much, so add....
 # actually a lot of stuff has been added to core module LineShapeOri
 
 
 class LineShape(LineShapeBase, Selectable, Resizeable):
+    #: Route attached lines around unrelated rectangles (opt-in; straight is
+    #: the default so existing diagrams keep their exact look).
+    autoRoute = False
+
     def __init__(self):
         LineShapeBase.__init__(self)
         # Selectable.__init__(self)  # no need
@@ -853,6 +858,55 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
                 point[1] += y_offset
 
         self.Move(dc, self._xpos, self._ypos)
+        self.UpdateRoute()
+
+    def UpdateRoute(self):
+        """Route the line around foreign rectangles when ``autoRoute`` is on.
+
+        Returns the routing style (``straight``, ``curved`` or ``orthogonal``),
+        or None when routing does not apply.  Endpoint clipping is recomputed
+        from a straight line first, so a previous curve cannot feed back into
+        the next route.
+        """
+        if (
+            not self.autoRoute
+            or self._from is None
+            or self._to is None
+            or self._from is self._to
+            or not self._lineControlPoints
+        ):
+            return None
+        canvas = self.GetCanvas()
+        diagram = getattr(canvas, "diagram", None) if canvas is not None else None
+        if diagram is None:
+            return None
+
+        # Collapse to a straight line so FindLineEndPoints clips along the
+        # shape-to-shape direction rather than the previous curve's tangent.
+        self.MakeLineControlPoints(2)
+        ends = self.FindLineEndPoints()
+        if not ends:
+            return None
+        self.SetEnds(*ends)
+
+        obstacles = []
+        for shape in diagram.shapes:
+            if shape is self or shape is self._from or shape is self._to:
+                continue
+            if isinstance(shape, RectangleShape) and len(shape.x) == 2 and len(shape.y) == 2:
+                obstacles.append((shape.x[0], shape.y[0], shape.x[1], shape.y[1]))
+
+        start = (self._lineControlPoints[0][0], self._lineControlPoints[0][1])
+        end = (self._lineControlPoints[-1][0], self._lineControlPoints[-1][1])
+        points, style = routing.route_edge(start, end, obstacles)
+        if len(points) != len(self._lineControlPoints):
+            self.MakeLineControlPoints(len(points))
+        for control, point in zip(self._lineControlPoints, points):
+            control[0] = point[0]
+            control[1] = point[1]
+        self.SetSpline(style == "curved")
+        self._sync_xy_from_control_points()
+        return style
 
     def FindLineEndPoints(self):
         """

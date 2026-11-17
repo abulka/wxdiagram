@@ -82,6 +82,11 @@ pynsource canvas needs, without pulling any application code into the library.
   `GetLabelPosition()` / `SetLabelPosition()` control the anchor.  Labels are
   part of the saved regions, and line hit-testing now includes the label boxes,
   so clicking a label selects the edge.
+- Edge routing: `wxdiagram.routing.route_edge()` (also exported as
+  `wxdiagram.route_edge`) and the opt-in `LineShape.autoRoute` pick a straight
+  segment when it is clear, a deflected spline when that dodges unrelated
+  boxes, and an orthogonal lane as a last resort.  Off by default, so existing
+  diagrams keep their exact look.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

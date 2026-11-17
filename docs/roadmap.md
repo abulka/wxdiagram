@@ -31,8 +31,8 @@ See `PLAN.md` in the repository for the full, maintained plan.
 
 ## 0.3 — edges
 
-- hybrid curved connectors with obstacle avoidance (from `uml-craft`)
-- orthogonal fallback, side selection, lane spreading
+- ✅ hybrid curved connectors with obstacle avoidance (straight → curved → orthogonal, `route_edge`)
+- ✅ orthogonal fallback; side selection and lane spreading still to do
 - ✅ edge hit-testing and labels (middle/start/end)
 - markers on curves, label collision avoidance
 

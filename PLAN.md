@@ -288,14 +288,16 @@ Source reference: `/Users/andy/Devel/uml-craft/app/src/layout/route/curved.rs`
 and `layout/route/mod.rs`.
 
 - Hybrid curved connectors:
-  - free bezier when it clears foreign boxes;
-  - deflect control points when that is enough;
-  - fall back to a rounded orthogonal route.
-- Side selection and lane-spread anchors.
-- ✅ Edge hit-testing (segment corridor + label boxes), labels
+  - ✅ free bezier when it clears foreign boxes;
+  - ✅ deflect control points when that is enough;
+  - ✅ fall back to a rounded orthogonal route.
+  All in `wxdiagram/routing.py` (`route_edge`), opt-in via
+  `LineShape.autoRoute`.
+- Side selection and lane-spread anchors (still to do).
+- ✅ Edge hit-testing (segment corridor + label boxes), ✅ labels
   (`AddText`/`SetLabelText`, middle/start/end anchors); markers on curves still
   to do with the router.
-- Optional orthogonal router (cascade first; A* later).
+- ✅ Basic orthogonal fallback; cascade/A* router later.
 - Keep routing independent of layout.
 
 Acceptance:

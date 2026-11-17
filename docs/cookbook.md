@@ -50,6 +50,20 @@ negative diagram coordinates is still reachable. Override it alongside
         return self.box_origin()      # (min_x, min_y)
 ```
 
+## Edge routing
+
+```python
+line = canvas.join_shapes(a, b)
+line.autoRoute = True        # off by default
+line.UpdateRoute()           # "straight", "curved" or "orthogonal"
+```
+
+`route_edge(p1, p2, obstacle_rects)` (also `wxdiagram.route_edge`) is a pure
+function: it returns control points plus the style used.  A clear segment stays
+straight; otherwise the edge bows into a spline, and if curves are blocked it
+takes an orthogonal lane outside the obstacles.  The router knows nothing about
+layout - pass it the rectangles to avoid.
+
 ## Edge labels
 
 ```python

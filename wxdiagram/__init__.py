@@ -109,6 +109,7 @@ from .core import (
 )
 from .polygon import PolygonShape
 from .lines import ArrowHead, ControlPoint, LineControlPoint, LineShape
+from .routing import route_edge
 from .bmpshape import BitmapShape, ResizableBitmapShape
 from .divided import DividedShape
 from .composite import (
@@ -217,6 +218,7 @@ __all__ = [
     "EllipseShape",
     "ConnectableEllipseShape",
     "LineShape",
+    "route_edge",
     "LinesShape",
     "PointShape",
     "RectangleShape",

@@ -23,7 +23,8 @@ attribution.
   Alt = from centre), hover ports, drag port-to-shape to connect, an optional
   grid with snap-to-grid, and magnetic alignment guides.
 - **Connectors** — attached lines clipped to shape perimeters, arrowheads,
-  splines, dashed pens, bend control points, and editable edge labels.
+  splines, dashed pens, bend control points, editable edge labels, and optional
+  routing around unrelated shapes.
 - **Shapes** — rectangles, ellipses, polygons, points, lines, bitmaps, divided
   shapes, labelled blocks, composites with constraints, and text labels.
 - **Export** — render the diagram to PNG at any scale (`ExportPng`).
