@@ -18,9 +18,10 @@ Supersedes: `ogl2/PLAN-2026.md` (keep that file as history; add a
   snapshot undo/redo (with a pynsource graph-aware snapshot provider).
 - Resize pack: bitmap resizing keeps float geometry so it tracks the mouse at
   any zoom; handles are positioned when created (no pre-paint hit-test gap);
-  corner drags clamp instead of inverting; resize is **proportional by default
-  with Shift for free aspect** (matches this plan; the earlier build had it
-  reversed).
+  eight handles for rectangle-like shapes (corners + edges), edge drags change
+  one axis; corner drags clamp instead of inverting; resize is **proportional
+  by default with Shift for free aspect**; a resize completes on mouse-up even
+  if the pointer has left the handle.
 - Scroll area now starts at the content origin: `getContentOrigin()` returns
   the minimum x/y (defaults to all shapes and composite children), so content
   at negative coordinates is scrollable and `ZoomToFit` frames it.  Pynsource
@@ -263,8 +264,8 @@ Acceptance:
 Source reference: `/Users/andy/Devel/shape-studio/src/ui/canvas.rs`,
 `src/shape.rs`, `src/app.rs`.
 
-- Resize handles now (two corners): proportional resize by default, Shift =
-  free aspect; 8 handles and Alt = resize from centre still to do.
+- ✅ 8 resize handles; ✅ proportional resize by default, Shift = free;
+  Alt = resize from centre (still to do).
 - Marquee selection; Shift/Ctrl add; Esc clear; arrow-key nudge.
 - Grid + alignment guides.
 - Undo/redo (snapshot or command pattern).

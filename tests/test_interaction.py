@@ -191,6 +191,21 @@ def test_resize_handles_are_hittable_before_the_first_paint(wx_app):
     frame.Destroy()
 
 
+def test_edge_handle_drag_resizes_one_axis(wx_app):
+    """Edge handles drag a single axis and keep the shape selected."""
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+    _redraw(canvas)
+
+    _drag(canvas, (300, 150), (340, 190))  # right-edge handle
+
+    assert shape.GetBoundingBoxMin() == (240.0, 100.0)
+    assert canvas.getSelectedShapes() == [shape]
+    frame.Destroy()
+
+
 def _redraw(canvas):
     """Draw offscreen so nodes reposition themselves during a scripted drag."""
     dc = wx.MemoryDC(wx.Bitmap(800, 600))

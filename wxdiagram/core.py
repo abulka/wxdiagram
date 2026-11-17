@@ -1305,6 +1305,7 @@ class ShapeCanvas(ScrolledWindow):
         self._dragState = NoDragging
         self._draggedShape = None
         self._drag_free_aspect = False
+        self._dragging_resize_node = None
         ####
 
     def _bounds_changed(self):
@@ -1960,6 +1961,7 @@ class ShapeCanvas(ScrolledWindow):
             print("Master OnLeftDown over shape", shape)
 
         if shape is None:
+            self._dragging_resize_node = None
             # Empty canvas: plain drag draws a marquee; Alt/Space/middle drag pans.
             pan_requested = self.panOnDrag and (
                 event.AltDown() or getattr(self, "_space_down", False)
@@ -1977,10 +1979,15 @@ class ShapeCanvas(ScrolledWindow):
             # Clicking a resize/port handle must NOT clear self.nodes: those
             # are the visible handles.  Select just the node so OnMotion
             # resizes, while the other handles stay on screen.
+            # Remember a resize handle so the resize can be finished on
+            # mouse-up even if the pointer has moved away from the handle.
+            self._dragging_resize_node = shape if isinstance(shape, ResizeableNode) else None
             self.begin_undo()
             self.select(shape)
             self.Refresh()
             return
+
+        self._dragging_resize_node = None
 
         if self.bringClickedShapeToFront and not isinstance(shape, (Node, ConnectionShape)):
             # Bring normal shapes to top, not Node shapes or ConnectionShape lines
@@ -2019,6 +2026,8 @@ class ShapeCanvas(ScrolledWindow):
             self._pan_end()
             self.Refresh()
             return
+        resize_node = self._dragging_resize_node
+        self._dragging_resize_node = None
         try:
             # Hit-test before refreshing the bounds: moving content to negative
             # coordinates changes the scroll origin, and re-deriving it first
@@ -2026,7 +2035,16 @@ class ShapeCanvas(ScrolledWindow):
             shape = self.getCurrentShape(event)
             self._bounds_changed()
             self._dump_drag_info("Master OnLeftUp", shape)
-            if shape:
+            if resize_node is not None:
+                # A resize finishes even when the pointer has left the handle:
+                # otherwise the node stayed selected and the handles looked
+                # stuck after releasing away from the corner/edge.
+                if shape is not None and shape is not resize_node:
+                    if shape._canvas is None:
+                        shape.SetCanvas(self)
+                    shape.OnLeftUp(event)
+                resize_node.leftUp(self.getSelectedShapes())
+            elif shape:
                 if shape._canvas is None:
                     # A shape can still arrive without a canvas (custom loaders,
                     # direct Diagram manipulation); repair instead of crashing
@@ -2052,7 +2070,7 @@ class ShapeCanvas(ScrolledWindow):
             if not ("leftUp" in message or "OnSizingEndDragLeft" in message):
                 raise
 
-        self._avoid_dangling_lines(shape)
+        self._avoid_dangling_lines(resize_node or shape)
         self.commit_undo()
 
         self.Refresh()
@@ -2503,8 +2521,10 @@ class ShapeCanvas(ScrolledWindow):
             # being dragged (see showInputs/showOutputs).  A finished edge is
             # an attached line routed via shape perimeters, never via ports.
             if isinstance(item, Resizeable):
-                # Creates the two resize handles, one for each point in the draw point list - brill!
-                self.nodes.extend([ResizeableNode(item, n, self) for n in range(len(item.x))])
+                # Rectangles get eight handles (corners + edges); other
+                # resizable shapes get one handle per x/y point.
+                count = len(RECT_HANDLES) if _is_two_point_rect(item) else len(item.x)
+                self.nodes.extend([ResizeableNode(item, n, self) for n in range(count)])
                 self.verify_nodes_have_canvas()
 
     def showOutputs(self, item=None):
@@ -3311,13 +3331,34 @@ class ONode(ConnectableNode):
         PointShape.draw(self, dc)
 
 
-def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
-    """Resize a two-point rectangle by dragging the corner at ``index``.
+def _is_two_point_rect(shape):
+    """True if ``shape`` is rectangle-like with exactly two x/y points."""
+    return isinstance(shape, RectangleShape) and len(shape.x) == 2 and len(shape.y) == 2
 
-    The corner opposite the dragged one stays fixed, the size is clamped to one
-    unit instead of inverting, and the resize is proportional unless
-    ``free_aspect`` is set (driven by whichever axis moved further).  Used by
-    ``ResizeableNode`` for rectangle shapes and by
+
+#: Handle layout for a two-point rectangle: ``(x_index, y_index)`` per handle.
+#: ``None`` on an axis means an edge handle that only drags the other axis.
+#: Indices 0 and 1 are the historical corners (top-left, bottom-right).
+RECT_HANDLES = (
+    (0, 0),  # 0 top-left
+    (1, 1),  # 1 bottom-right
+    (1, 0),  # 2 top-right
+    (0, 1),  # 3 bottom-left
+    (0, None),  # 4 left
+    (1, None),  # 5 right
+    (None, 0),  # 6 top
+    (None, 1),  # 7 bottom
+)
+
+
+def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
+    """Resize a two-point rectangle by dragging the handle at ``index``.
+
+    ``index`` selects a corner or an edge from :data:`RECT_HANDLES`.  The
+    opposite corner/edge stays fixed, the size is clamped to one unit instead
+    of inverting, and corner drags are proportional unless ``free_aspect`` is
+    set (driven by whichever axis moved further).  Edge drags change one axis
+    only.  Used by ``ResizeableNode`` for rectangle shapes and by
     ``ResizableBitmapShape.move_handle``.
     """
     if len(shape.x) != 2 or len(shape.y) != 2:
@@ -3325,46 +3366,84 @@ def resize_rect_from_handle(shape, index, dx, dy, free_aspect=False):
         shape.y[index] += dy
         return
 
-    other = 0 if index == 1 else 1
-    sign = 1.0 if index > other else -1.0
-    old_width = abs(shape.x[other] - shape.x[index])
-    old_height = abs(shape.y[other] - shape.y[index])
-    width = max(1.0, old_width + sign * dx)
-    height = max(1.0, old_height + sign * dy)
+    xi, yi = RECT_HANDLES[index] if 0 <= index < len(RECT_HANDLES) else (1, 1)
+    old_width = abs(shape.x[1] - shape.x[0])
+    old_height = abs(shape.y[1] - shape.y[0])
+    width = old_width
+    height = old_height
 
-    if not free_aspect and old_width > 0 and old_height > 0:
+    if xi is not None:
+        sign = 1.0 if xi == 1 else -1.0
+        width = max(1.0, old_width + sign * dx)
+    if yi is not None:
+        sign = 1.0 if yi == 1 else -1.0
+        height = max(1.0, old_height + sign * dy)
+
+    if not free_aspect and xi is not None and yi is not None and old_width > 0 and old_height > 0:
         ratio = old_width / old_height
         if abs(width - old_width) >= abs(height - old_height):
             height = max(1.0, width / ratio)
         else:
             width = max(1.0, height * ratio)
 
-    if index < other:
-        shape.x[index] = shape.x[other] - width
-        shape.y[index] = shape.y[other] - height
-    else:
-        shape.x[index] = shape.x[other] + width
-        shape.y[index] = shape.y[other] + height
+    if xi is not None:
+        shape.x[0 if xi == 0 else 1] = shape.x[1] - width if xi == 0 else shape.x[0] + width
+    if yi is not None:
+        shape.y[0 if yi == 0 else 1] = shape.y[1] - height if yi == 0 else shape.y[0] + height
 
 
 class ResizeableNode(Node):
-    """The small resize node grab handles for resizing shapes"""
+    """A resize grab handle for a shape.
+
+    Rectangle-like shapes get eight handles (four corners and four edges, see
+    :data:`RECT_HANDLES`); other resizable shapes get one per x/y point (lines,
+    polygons).
+    """
 
     def __init__(self, item, index, cf):
         Node.__init__(self, item, index, cf)
         self.fill = ["BLACK"]
+        self.handle = self._handle_descriptor(index)
         # Position the handle straight away: hit-testing uses the graphic and
         # draw() is the only other place that positions it.  Without this a
         # handle cannot be grabbed between select() and the next paint, so a
         # click near a corner drags the shape instead of resizing it.
-        if index < len(item.x) and index < len(item.y):
-            self.moveto(item.x[index], item.y[index])
+        point = self._handle_xy()
+        if point is not None:
+            self.moveto(*point)
+
+    def _handle_descriptor(self, index):
+        item = self.item
+        if _is_two_point_rect(item) and 0 <= index < len(RECT_HANDLES):
+            return RECT_HANDLES[index]
+        return (index, index)
+
+    def _handle_xy(self):
+        """Current position of this handle in diagram coordinates."""
+        item = self.item
+        xi, yi = self.handle
+        if xi is None:
+            if len(item.x) < 2:
+                return None
+            x = (item.x[0] + item.x[1]) / 2.0
+        elif xi < len(item.x):
+            x = item.x[xi]
+        else:
+            return None
+        if yi is None:
+            if len(item.y) < 2:
+                return None
+            y = (item.y[0] + item.y[1]) / 2.0
+        elif yi < len(item.y):
+            y = item.y[yi]
+        else:
+            return None
+        return x, y
 
     def draw(self, dc):
-        item = self.item
-        index = self.index
-        self.moveto(item.x[index], item.y[index])
-        # print(f"ResizeableNode.draw, self correction to shape {item} .x={item.x} .y={item.x} index/port {index} thus {(item.x[index], item.y[index])}")
+        point = self._handle_xy()
+        if point is not None:
+            self.moveto(*point)
         PointShape.draw(self, dc)
 
     def move(self, x, y):
@@ -3384,10 +3463,9 @@ class ResizeableNode(Node):
         xy points.
         Also the call to MoveLinks() might cause issues.
 
-
-        Changes coords of the point on ResizeableNode's shape's corner by delta x, y
-        The self.index of this node is the point in the shapes's point list 0..n
-        The self.item is the shape
+        Changes coords of the point on ResizeableNode's shape's corner by delta x, y.
+        The self.index selects which point/edge of the shape this node drags
+        (for a rectangle: see RECT_HANDLES), and self.item is the shape.
         """
         # print("ResizeableNode move() self.index", self.index)
         item = self.item
@@ -3402,7 +3480,7 @@ class ResizeableNode(Node):
                 item.MoveLinks(dc=None)
                 self._sync_to_item()
                 return
-        elif isinstance(item, RectangleShape) and len(item.x) == 2 and len(item.y) == 2:
+        elif _is_two_point_rect(item):
             # Corner drag: keep the opposite corner fixed and never invert the
             # rectangle, which used to trip RectangleShape.sanity() on hit-test.
             resize_rect_from_handle(item, self.index, x, y, free_aspect)
@@ -3416,9 +3494,9 @@ class ResizeableNode(Node):
 
     def _sync_to_item(self):
         """Keep the handle under the mouse while dragging (hit-testing uses graphic)."""
-        item = self.item
-        if self.index < len(item.x) and self.index < len(item.y):
-            self.moveto(item.x[self.index], item.y[self.index])
+        point = self._handle_xy()
+        if point is not None:
+            self.moveto(*point)
 
     def leftUp(self, selected_ResizableNodes):  # ANDY ADDED
         """when resize finishes, simulate wx.ogl event of same name"""
@@ -3429,14 +3507,13 @@ class ResizeableNode(Node):
             pass
 
         shape = self.item  # actual shape being re-sized
+        point = self._handle_xy() or (shape.GetX(), shape.GetY())
 
         # Clear the ResizableNode out of being selected, and select the shape being re-sized
         self.cf.deselect()
         self.cf.select(shape)
 
-        shape.OnSizingEndDragLeft(
-            pt=None, x=shape.x[self.index], y=shape.y[self.index], keys=None, attch=None
-        )
+        shape.OnSizingEndDragLeft(pt=None, x=point[0], y=point[1], keys=None, attch=None)
 
 
 # ---------------------------------------------------------------------------------------------------------

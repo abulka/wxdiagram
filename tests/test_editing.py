@@ -452,6 +452,72 @@ def test_rectangle_handle_clamps_instead_of_inverting(wx_app):
     frame.Destroy()
 
 
+def test_rectangle_selection_creates_eight_handles(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    nodes = {n.index: n for n in canvas.nodes if isinstance(n, ResizeableNode)}
+    assert sorted(nodes) == list(range(8))
+    assert nodes[0]._handle_xy() == (100, 100)  # top-left
+    assert nodes[1]._handle_xy() == (300, 200)  # bottom-right
+    assert nodes[2]._handle_xy() == (300, 100)  # top-right
+    assert nodes[3]._handle_xy() == (100, 200)  # bottom-left
+    assert nodes[4]._handle_xy() == (100, 150)  # left
+    assert nodes[5]._handle_xy() == (300, 150)  # right
+    assert nodes[6]._handle_xy() == (200, 100)  # top
+    assert nodes[7]._handle_xy() == (200, 200)  # bottom
+    frame.Destroy()
+
+
+def test_edge_handle_resizes_one_axis(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    right = next(n for n in canvas.nodes if isinstance(n, ResizeableNode) and n.index == 5)
+    right.move(20, 30)  # the y delta must be ignored for an edge handle
+    assert shape.x == [100, 320]
+    assert shape.y == [100, 200]
+
+    bottom = next(n for n in canvas.nodes if isinstance(n, ResizeableNode) and n.index == 7)
+    bottom.move(0, 50)
+    assert shape.GetBoundingBoxMin() == (220, 150)
+    frame.Destroy()
+
+
+def test_corner_handle_works_from_every_corner(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(100, 100, 300, 200)  # 2:1
+    canvas.InsertShape(shape, 0)
+    canvas.select(shape)
+
+    top_right = next(n for n in canvas.nodes if isinstance(n, ResizeableNode) and n.index == 2)
+    top_right.move(-40, -10)
+
+    width, height = shape.GetBoundingBoxMin()
+    assert width == pytest.approx(160)
+    assert height == pytest.approx(80)  # proportional, driven by x
+    # bottom-left corner stays anchored
+    assert shape.x[0] == pytest.approx(100)
+    assert shape.y[1] == pytest.approx(200)
+    frame.Destroy()
+
+
+def test_bitmap_edge_handle_resizes_one_axis(wx_app):
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(wx.Image(40, 30)))
+    shape.x = [0, 40]
+    shape.y = [0, 30]
+
+    shape.move_handle(5, 20, 15)  # right edge
+    assert shape.GetBoundingBoxMin() == (60, 30)
+    shape.move_handle(4, -10, 0)  # left edge
+    assert shape.GetBoundingBoxMin() == (70, 30)
+
+
 def test_selectable_text_can_be_selected_and_moved(wx_app):
     frame, canvas = _make_canvas(wx_app)
     caption = wxdiagram.SelectableTextShape(100, 100, "hello caption")

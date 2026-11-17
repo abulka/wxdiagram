@@ -51,6 +51,10 @@ pynsource canvas needs, without pulling any application code into the library.
   assertion on the next hit-test).
 - Corner resizing is proportional by default; hold Shift for free
   (non-proportional) resizing.
+- Rectangle-like shapes now show eight resize handles: four corners plus four
+  edge midpoints.  Edge handles resize a single axis; corners stay proportional.
+- A resize finishes wherever the mouse is released, so the shape (not the
+  invisible handle) stays selected when the pointer leaves the handle.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit
