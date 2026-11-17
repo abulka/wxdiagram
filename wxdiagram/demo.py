@@ -213,36 +213,36 @@ def _populate(canvas):
     bitmap = make_bitmap_shape(620, 450)
     shapes.append(bitmap)
 
-    # -- edge styles: the same pair connected three ways -----------------------
-    captions.append(make_caption(30, 410, "EDGE STYLES"))
+    # -- edge styles: the same pair connected five ways ------------------------
+    captions.append(make_caption(50, 440, "EDGE STYLES"))
 
     def edge_pair(top, right_top, label, mode, colour, blocker=False):
-        left = wxdiagram.RectangleShape(30, top, 120, top + 50)
-        right = wxdiagram.RectangleShape(220, right_top, 310, right_top + 50)
+        left = wxdiagram.RectangleShape(50, top, 170, top + 70)
+        right = wxdiagram.RectangleShape(280, right_top, 400, right_top + 70)
         for box in (left, right):
             box.SetBrush(wx.Brush(colour))
         shapes.extend([left, right])
         if blocker:
-            bar = wxdiagram.RectangleShape(155, top + 8, 195, top + 42)
+            bar = wxdiagram.RectangleShape(195, top + 12, 245, top + 58)
             bar.SetBrush(wx.Brush("LIGHT GREY"))
             shapes.append(bar)
         edge = canvas.join_shapes(left, right)
         edge.SetRouteMode(mode)
         edge.AddText(label)
-        edge.SetLabelPosition(0, 0, -16)  # keep the label off the line
+        edge.SetLabelPosition(0, 0, -18)  # keep the label off the line
 
-    edge_pair(450, 450, "straight", "straight", "LIGHT BLUE")
-    edge_pair(520, 520, "curved", "curved", "PALE GREEN")
-    edge_pair(590, 590, "auto", "auto", "PALE GREEN", blocker=True)
-    edge_pair(660, 660, "avoid", "avoid", "PALE GREEN", blocker=True)
-    edge_pair(740, 720, "orthogonal", "orthogonal", "LIGHT YELLOW")
+    edge_pair(500, 500, "straight", "straight", "LIGHT BLUE")
+    edge_pair(610, 610, "curved", "curved", "PALE GREEN")
+    edge_pair(720, 720, "auto", "auto", "PALE GREEN", blocker=True)
+    edge_pair(830, 830, "avoid", "avoid", "PALE GREEN", blocker=True)
+    edge_pair(960, 930, "orthogonal", "orthogonal", "LIGHT YELLOW")
 
     # -- lines and arrows -------------------------------------------------------------
-    captions.append(make_caption(850, 410, "LINES & ARROWS"))
-    polyline = make_polyline(850, 470)
+    captions.append(make_caption(1180, 410, "LINES & ARROWS"))
+    polyline = make_polyline(1180, 470)
     arrowed = wxdiagram.LineShape()
     arrowed.MakeLineControlPoints(2)
-    arrowed.SetEnds(850, 560, 1080, 630)
+    arrowed.SetEnds(1180, 560, 1410, 630)
     arrowed._pen = wx.Pen(wx.BLACK, 2, wx.PENSTYLE_LONG_DASH)
     arrowed.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
     shapes.extend([polyline, arrowed])
@@ -250,9 +250,9 @@ def _populate(canvas):
     # A spline (bezier-like smooth curve) through three control points.
     spline = wxdiagram.LineShape()
     spline.MakeLineControlPoints(3)
-    spline._lineControlPoints[0] = wx.RealPoint(850, 700)
-    spline._lineControlPoints[1] = wx.RealPoint(965, 760)
-    spline._lineControlPoints[2] = wx.RealPoint(1080, 700)
+    spline._lineControlPoints[0] = wx.RealPoint(1180, 700)
+    spline._lineControlPoints[1] = wx.RealPoint(1295, 760)
+    spline._lineControlPoints[2] = wx.RealPoint(1410, 700)
     spline.SetSpline(True)
     spline.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
     spline.AddText("spline")
@@ -262,7 +262,7 @@ def _populate(canvas):
     # One line showing the different arrow kinds and positions it can carry.
     arrows = wxdiagram.LineShape()
     arrows.MakeLineControlPoints(2)
-    arrows.SetEnds(850, 800, 1080, 800)
+    arrows.SetEnds(1180, 800, 1410, 800)
     arrows.AddArrow(
         wxdiagram.ARROW_DOUBLE_OBLIQUE, wxdiagram.ARROW_POSITION_START, size=12.0
     )
@@ -277,10 +277,10 @@ def _populate(canvas):
     # A bent line: one control point per bend, editable with the resize nodes.
     bent = wxdiagram.LineShape()
     bent.MakeLineControlPoints(4)
-    bent._lineControlPoints[0] = wx.RealPoint(850, 900)
-    bent._lineControlPoints[1] = wx.RealPoint(930, 860)
-    bent._lineControlPoints[2] = wx.RealPoint(1000, 930)
-    bent._lineControlPoints[3] = wx.RealPoint(1080, 880)
+    bent._lineControlPoints[0] = wx.RealPoint(1180, 900)
+    bent._lineControlPoints[1] = wx.RealPoint(1260, 860)
+    bent._lineControlPoints[2] = wx.RealPoint(1330, 930)
+    bent._lineControlPoints[3] = wx.RealPoint(1410, 880)
     bent.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
     bent.AddText("bend points")
     bent.SetLabelPosition(0, 0, -16)
@@ -313,7 +313,7 @@ class DemoFrame(wx.Frame):
         super().__init__(
             None,
             title="wxdiagram demo - a faster, zoomable diagramming library for wxPython",
-            size=(1200, 760),
+            size=(1500, 1000),
         )
         self.Centre()
 

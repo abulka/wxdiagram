@@ -113,7 +113,9 @@ pynsource canvas needs, without pulling any application code into the library.
   with coloured boxes connected by straight, curved, auto, avoid and orthogonal
   edges (each labelled; a blocker shows avoidance); the basic shapes are coloured.
 - Demo LINES & ARROWS now also shows a spline, a line carrying start/middle/end
-  arrow types, and a multi-point bend line.
+  arrow types, and a multi-point bend line.  The window is larger and the left
+  column is roomier: wider EDGE STYLES pairs with more row spacing, and the
+  lines/arrows column moved to the far right.
 - `CompositeShape` is resizable (`Resizeable`): the eight handles scale its
   children proportionally with the frame, and constraints are re-evaluated.
 - `PolygonShape.HitTest` uses point-in-polygon, so the interior of a polygon is
