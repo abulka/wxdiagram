@@ -102,9 +102,14 @@ pynsource canvas needs, without pulling any application code into the library.
 - Arrowheads on spline edges use points sampled along the curve (Catmull-Rom)
   for their direction instead of the far-off middle control point, so heads on
   routed curves point along the edge.
-- Demo: removed the `utils.py` block that sat over the sample image, and added
-  an EDGE STYLES section with coloured boxes connected by straight, curved and
-  orthogonal edges, each labelled with its type.
+- Demo: removed the `utils.py` block that sat over the sample image, dropped
+  the Repository box and shortened UserService, and added an EDGE STYLES section
+  with coloured boxes connected by straight, curved, avoid and orthogonal edges
+  (each labelled, the avoid pair with a blocker); the basic shapes are coloured.
+- `CompositeShape` is resizable (`Resizeable`): the eight handles scale its
+  children proportionally with the frame, and constraints are re-evaluated.
+- `PolygonShape.HitTest` uses point-in-polygon, so the interior of a polygon is
+  clickable instead of only its outline.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

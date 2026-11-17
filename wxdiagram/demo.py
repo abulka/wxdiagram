@@ -183,18 +183,13 @@ def _populate(canvas):
 
     service = make_class_box(
         "UserService",
-        ["# repository: Repository", "# cache: Cache", "# started: bool"],
-        ["+ find_user(id): User", "+ save_user(u)", "+ delete_user(id)"],
+        ["# cache: Cache"],
+        ["+ find_user(id): User", "+ save_user(u)"],
         300,
         280,
     )
 
-    repository = wxdiagram.Block()
-    repository.label = "Repository"
-    repository.x = [30, 190]
-    repository.y = [300, 370]
-
-    shapes.extend([client, controller, service, repository])
+    shapes.extend([client, controller, service])
 
     # -- composite --------------------------------------------------------------------
     captions.append(make_caption(620, 20, "COMPOSITE (2x2 GRID)"))
@@ -204,10 +199,13 @@ def _populate(canvas):
     # -- basic shapes -----------------------------------------------------------------
     captions.append(make_caption(620, 260, "BASIC SHAPES"))
     rectangle = wxdiagram.ResizableRectangleShape(620, 300, 740, 370)
+    rectangle.SetBrush(wx.Brush("LIGHT BLUE"))
     ellipse = wxdiagram.ConnectableEllipseShape()
     ellipse.x = [760, 880]
     ellipse.y = [300, 370]
+    ellipse.SetBrush(wx.Brush("PALE GREEN"))
     diamond = make_diamond(960, 300)
+    diamond.SetBrush(wx.Brush("LIGHT YELLOW"))
     shapes.extend([rectangle, ellipse, diamond])
 
     # -- media and code ---------------------------------------------------------------
@@ -218,12 +216,16 @@ def _populate(canvas):
     # -- edge styles: the same pair connected three ways -----------------------
     captions.append(make_caption(30, 410, "EDGE STYLES"))
 
-    def edge_pair(top, right_top, label, mode, colour):
+    def edge_pair(top, right_top, label, mode, colour, blocker=False):
         left = wxdiagram.RectangleShape(30, top, 120, top + 50)
         right = wxdiagram.RectangleShape(220, right_top, 310, right_top + 50)
         for box in (left, right):
             box.SetBrush(wx.Brush(colour))
         shapes.extend([left, right])
+        if blocker:
+            bar = wxdiagram.RectangleShape(155, top + 8, 195, top + 42)
+            bar.SetBrush(wx.Brush("LIGHT GREY"))
+            shapes.append(bar)
         edge = canvas.join_shapes(left, right)
         edge.SetRouteMode(mode)
         edge.AddText(label)
@@ -231,7 +233,8 @@ def _populate(canvas):
 
     edge_pair(450, 450, "straight", "straight", "LIGHT BLUE")
     edge_pair(520, 520, "curved", "curved", "PALE GREEN")
-    edge_pair(610, 580, "orthogonal", "orthogonal", "LIGHT YELLOW")
+    edge_pair(590, 590, "avoid", "avoid", "PALE GREEN", blocker=True)
+    edge_pair(670, 650, "orthogonal", "orthogonal", "LIGHT YELLOW")
 
     # -- lines and arrows -------------------------------------------------------------
     captions.append(make_caption(850, 410, "LINES & ARROWS"))
@@ -246,22 +249,23 @@ def _populate(canvas):
     # -- connections: attached lines, routed via the box perimeters ---------------
     uses = canvas.join_shapes(client, controller)
     if uses is not None:
-        uses.autoRoute = "curved"
+        uses.SetRouteMode("avoid")
         uses.AddText("uses")
-        uses.UpdateRoute()
-    # deliberately left straight: a mix of edge styles
-    canvas.join_shapes(repository, service)
     # vertical relationship: controller bottom -> service top
     delegates = canvas.join_shapes(controller, service)
     if delegates is not None:
-        delegates.autoRoute = "curved"
+        delegates.SetRouteMode("avoid")
         delegates.AddText("delegates")
-        delegates.UpdateRoute()
 
     for caption in captions:
         canvas.InsertShape(caption, 999)
     for shape in shapes:
         canvas.InsertShape(shape, 999)
+    # Route once everything is in the diagram, so edges can see the obstacles
+    # (the shapes above were created before being inserted).
+    for shape in canvas.diagram.shapes:
+        if isinstance(shape, wxdiagram.LineShape) and shape.autoRoute:
+            shape.UpdateRoute()
 
 
 class DemoFrame(wx.Frame):

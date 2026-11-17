@@ -594,6 +594,49 @@ def test_tiny_drag_does_not_resize(wx_app):
     frame.Destroy()
 
 
+def test_composite_resizes_and_scales_children(wx_app):
+    comp = wxdiagram.CompositeShape()
+    child = wxdiagram.Block()
+    child.x = [0, 50]
+    child.y = [0, 40]
+    comp.AddChild(child)
+    comp.x = [0, 100]
+    comp.y = [0, 80]
+
+    comp.move_handle(1, 100, 80, free_aspect=True)
+
+    assert comp.GetBoundingBoxMin() == (200, 160)
+    assert child.x == [0, 100]  # scaled with the frame
+    assert child.y == [0, 80]
+
+
+def test_composite_selection_creates_resize_handles(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    comp = wxdiagram.CompositeShape()
+    comp.AddChild(wxdiagram.Block())
+    canvas.InsertShape(comp, 0)
+    canvas.select(comp)
+
+    handles = [n for n in canvas.nodes if isinstance(n, ResizeableNode)]
+    assert len(handles) == 8
+    frame.Destroy()
+
+
+def test_polygon_is_clickable_inside_not_just_on_its_outline(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    diamond = wxdiagram.PolygonShape()
+    diamond.Create([(0, -50), (50, 0), (0, 50), (-50, 0)])
+    diamond.move_to(200, 200)
+    canvas.AddShape(diamond)
+
+    centre = ((min(diamond.x) + max(diamond.x)) / 2, (min(diamond.y) + max(diamond.y)) / 2)
+    assert diamond.HitTest(*centre)
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, centre, down=True))
+    assert diamond in canvas.getSelectedShapes()
+    frame.Destroy()
+
+
 def test_selectable_text_can_be_selected_and_moved(wx_app):
     frame, canvas = _make_canvas(wx_app)
     caption = wxdiagram.SelectableTextShape(100, 100, "hello caption")

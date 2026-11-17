@@ -15,7 +15,7 @@
 # and Recompute() (constraint solving) as in wx.lib.ogl, but without needing a wx DC.
 # ---------------------------------------------------------------------------------------------
 
-from .core import RectangleShape, Selectable
+from .core import RectangleShape, Resizeable, Selectable, resize_rect_from_handle
 
 CONSTRAINT_CENTRED_VERTICALLY = 1
 CONSTRAINT_CENTRED_HORIZONTALLY = 2
@@ -299,11 +299,17 @@ class Constraint:
         return False
 
 
-class CompositeShape(RectangleShape, Selectable):
-    """A rectangle whose child shapes move with it, optionally constrained in layout."""
+class CompositeShape(RectangleShape, Selectable, Resizeable):
+    """A rectangle whose child shapes move and scale with it.
+
+    Children can also be constrained in layout; resizing the frame scales the
+    children proportionally (their fonts are unchanged), and any constraints are
+    re-evaluated afterwards.
+    """
 
     def __init__(self):
         RectangleShape.__init__(self, 100, 100, 300, 300)
+        Resizeable.__init__(self)
         self._compositeChildren = []
         self._constraints = []
 
@@ -367,6 +373,38 @@ class CompositeShape(RectangleShape, Selectable):
         delta_x = x - self.x[0]
         delta_y = y - self.y[0]
         self.move(delta_x, delta_y)
+
+    def move_handle(self, index, dx, dy, free_aspect=False, from_center=False):
+        """Resize the frame and scale the children with it."""
+        old = (self.x[0], self.y[0], self.x[1], self.y[1])
+        resize_rect_from_handle(self, index, dx, dy, free_aspect, from_center)
+        new = (self.x[0], self.y[0], self.x[1], self.y[1])
+        self._scale_children_to(old, new)
+        if self._constraints:
+            self.Recompute()
+        return True
+
+    def _scale_children_to(self, old, new):
+        """Map children from the old frame rectangle to the new one."""
+        old_x0, old_y0, old_x1, old_y1 = old
+        new_x0, new_y0, new_x1, new_y1 = new
+        old_w = old_x1 - old_x0
+        old_h = old_y1 - old_y0
+        scale_x = (new_x1 - new_x0) / old_w if old_w else 1.0
+        scale_y = (new_y1 - new_y0) / old_h if old_h else 1.0
+        for child in self._compositeChildren:
+            if not child.x or not child.y:
+                continue
+            child_old = (min(child.x), min(child.y), max(child.x), max(child.y))
+            child.x = [new_x0 + (value - old_x0) * scale_x for value in child.x]
+            child.y = [new_y0 + (value - old_y0) * scale_y for value in child.y]
+            if isinstance(child, CompositeShape):
+                child._scale_children_to(
+                    child_old,
+                    (min(child.x), min(child.y), max(child.x), max(child.y)),
+                )
+            if hasattr(child, "MoveLinks"):
+                child.MoveLinks(None)
 
     def CalculateSize(self):
         """Resize and reposition the composite to enclose its children."""

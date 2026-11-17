@@ -22,6 +22,22 @@ class PolygonShape(LinesShape):
         self.x = []
         self.y = []
 
+    def HitTest(self, x, y):
+        """Interior hit test (ray casting), so the whole polygon is clickable."""
+        points = list(zip(self.x, self.y))
+        if len(points) < 3:
+            return False
+        inside = False
+        previous_x, previous_y = points[-1]
+        for current_x, current_y in points:
+            if (current_y > y) != (previous_y > y):
+                crossing_x = (previous_x - current_x) * (y - current_y)
+                crossing_x = crossing_x / (previous_y - current_y) + current_x
+                if x < crossing_x:
+                    inside = not inside
+            previous_x, previous_y = current_x, current_y
+        return inside
+
     def draw(self, dc):
         """Draw a closed polygon.
 
