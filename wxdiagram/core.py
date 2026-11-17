@@ -71,6 +71,35 @@ class Diagram:
     def __init__(self):
         self.shapes = []
         self._diagramCanvas = None
+        # Grid: spacing in diagram units.  Snapping is off by default so
+        # existing diagrams drag exactly as before.
+        self._gridSpacing = 10
+        self._snapToGrid = False
+
+    # --- Grid / snapping (classic OGL API) --------------------------------
+
+    def SetGridSpacing(self, spacing):
+        """Set the grid spacing in diagram units (0 or less disables it)."""
+        self._gridSpacing = max(0, int(spacing))
+
+    def GetGridSpacing(self):
+        """Return the grid spacing in diagram units."""
+        return self._gridSpacing
+
+    def SetSnapToGrid(self, snap):
+        """Turn snapping to the grid on or off."""
+        self._snapToGrid = bool(snap)
+
+    def GetSnapToGrid(self):
+        """Return whether dragging snaps to the grid."""
+        return self._snapToGrid
+
+    def Snap(self, x, y):
+        """Return ``(x, y)`` rounded to the nearest grid point."""
+        spacing = self._gridSpacing
+        if spacing <= 0:
+            return x, y
+        return round(x / spacing) * spacing, round(y / spacing) * spacing
 
     @staticmethod
     def _ensure_shape_id(shape):
@@ -1242,6 +1271,14 @@ class ShapeCanvas(ScrolledWindow):
     #: marquee selects shapes it touches; False would require full containment
     marqueeSelectsTouching = True
     MARQUEE_MIN_SIZE = 3
+    #: snap shape drags to the diagram grid
+    snapToGrid = False
+    #: draw the diagram grid in the background
+    showGrid = False
+    #: while dragging, snap to other shapes' edges/centres and draw guides
+    alignmentGuides = True
+    #: alignment guide tolerance in screen pixels
+    ALIGN_TOLERANCE = 4
     UNDO_LIMIT = 50
 
     def __init__(self, parent, id=-1, pos=(-1, -1), size=(-1, -1), style=0, name=""):
@@ -1310,7 +1347,12 @@ class ShapeCanvas(ScrolledWindow):
         self._drag_from_center = False
         self._drag_start_client = None
         self._drag_started = False
+        self._drag_start_hull = None
+        self._drag_origin_diagram = (0.0, 0.0)
         self._dragging_resize_node = None
+        self._guides = []
+        self.gridColour = wx.Colour(228, 228, 228)
+        self.guideColour = wx.Colour(200, 60, 200)
         ####
 
     def _bounds_changed(self):
@@ -1469,9 +1511,11 @@ class ShapeCanvas(ScrolledWindow):
         self.PrepareDC(dc)
         dc.SetUserScale(self.scalex, self.scaley)
         self._apply_content_origin(dc)
+        self._draw_grid(dc)
         # for item in self.diagram.shapes + self.nodes:
         #     item.draw(dc)
         self.Redraw(dc)  # does the above two lines
+        self._draw_guides(dc)
         self._draw_marquee(dc)
 
     def _apply_content_origin(self, dc):
@@ -1785,6 +1829,118 @@ class ShapeCanvas(ScrolledWindow):
             int(rect[0]), int(rect[1]), int(rect[2] - rect[0]), int(rect[3] - rect[1])
         )
 
+    # --- Grid / snapping / alignment guides --------------------------------
+
+    def _visible_diagram_rect(self):
+        """Diagram-coordinate rectangle currently visible in the client area."""
+        client_w, client_h = self.GetClientSize()
+        left, top = self.client_pos_in_diagram_coords(0, 0)
+        right, bottom = self.client_pos_in_diagram_coords(client_w, client_h)
+        return left, top, right, bottom
+
+    def _draw_grid(self, dc):
+        if not self.showGrid or self.diagram is None:
+            return
+        spacing = self.diagram.GetGridSpacing()
+        # Below a few pixels the grid is just noise (and slow) - skip it.
+        if spacing <= 0 or spacing * self.scalex < 6:
+            return
+        left, top, right, bottom = self._visible_diagram_rect()
+        dc.SetPen(wx.Pen(self.gridColour, 1))
+        x = int(left // spacing) * spacing
+        while x <= right:
+            dc.DrawLine(int(x), int(top), int(x), int(bottom))
+            x += spacing
+        y = int(top // spacing) * spacing
+        while y <= bottom:
+            dc.DrawLine(int(left), int(y), int(right), int(y))
+            y += spacing
+
+    def _draw_guides(self, dc):
+        if not self._guides:
+            return
+        left, top, right, bottom = self._visible_diagram_rect()
+        dc.SetPen(wx.Pen(self.guideColour, 1, wx.PENSTYLE_SHORT_DASH))
+        for orientation, coord in self._guides:
+            if orientation == "v":
+                dc.DrawLine(int(coord), int(top), int(coord), int(bottom))
+            else:
+                dc.DrawLine(int(left), int(coord), int(right), int(coord))
+
+    def _snap_enabled(self):
+        return bool(self.snapToGrid or (self.diagram is not None and self.diagram.GetSnapToGrid()))
+
+    def Snap(self, x, y):
+        """Snap a diagram coordinate to the grid (if snapping is enabled)."""
+        if self.diagram is None or not self._snap_enabled():
+            return x, y
+        return self.diagram.Snap(x, y)
+
+    @staticmethod
+    def _hull(shapes):
+        xs = [value for shape in shapes for value in shape.x]
+        ys = [value for shape in shapes for value in shape.y]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    @staticmethod
+    def _best_alignment(low, high, candidate_values, tolerance):
+        """Return ``(offset, guide)`` for the nearest aligned edge or centre."""
+        best_offset = None
+        best_guide = None
+        for other in candidate_values:
+            for dragged in (low, (low + high) / 2.0, high):
+                offset = other - dragged
+                if abs(offset) <= tolerance and (
+                    best_offset is None or abs(offset) < abs(best_offset)
+                ):
+                    best_offset = offset
+                    best_guide = other
+        return (best_offset or 0.0), best_guide
+
+    def _snap_drag(self, shapes, start_hull, dx, dy):
+        """Adjust a group drag for the grid and alignment guides.
+
+        ``dx``/``dy`` are the cumulative drag delta since the mouse went down,
+        and ``start_hull`` is the selection's hull at that moment.  Working from
+        the total offset (rather than per-event deltas) means a shape is not
+        stuck to a guide while the pointer keeps moving away from it.
+
+        Returns the adjusted total delta and records guide lines for
+        :meth:`_draw_guides`.
+        """
+        self._guides = []
+        left, top, right, bottom = start_hull
+        proposed_left = left + dx
+        proposed_top = top + dy
+        left, top = proposed_left, proposed_top
+        right += dx
+        bottom += dy
+
+        if self._snap_enabled():
+            left, top = self.Snap(left, top)
+
+        if self.alignmentGuides and self.diagram is not None:
+            tolerance = self.ALIGN_TOLERANCE / max(self.scalex, 1e-9)
+            candidate_x = []
+            candidate_y = []
+            for other in self.diagram.shapes:
+                if other in shapes or not isinstance(other, RectangleShape):
+                    continue
+                if len(other.x) < 2 or len(other.y) < 2:
+                    continue
+                candidate_x.extend((other.x[0], (other.x[0] + other.x[1]) / 2.0, other.x[1]))
+                candidate_y.extend((other.y[0], (other.y[0] + other.y[1]) / 2.0, other.y[1]))
+            offset_x, guide_x = self._best_alignment(left, right, candidate_x, tolerance)
+            offset_y, guide_y = self._best_alignment(top, bottom, candidate_y, tolerance)
+            left += offset_x
+            top += offset_y
+            if guide_x is not None:
+                self._guides.append(("v", guide_x))
+            if guide_y is not None:
+                self._guides.append(("h", guide_y))
+
+        return dx + (left - proposed_left), dy + (top - proposed_top)
+
     # --- Editing helpers ---------------------------------------------------
 
     def nudge_selected(self, dx, dy):
@@ -1963,6 +2119,9 @@ class ShapeCanvas(ScrolledWindow):
         # resize anything (classic OGL waits DRAG_TOLERANCE pixels).
         self._drag_start_client = event.GetPosition() if hasattr(event, "GetPosition") else None
         self._drag_started = False
+        self._drag_start_hull = None
+        self._drag_origin_diagram = tuple(self.currentPoint)
+        self._guides = []
         # Hover-shown ports have done their job once something is clicked:
         # the clicked node object is already in hand, so drop the hover set.
         self._clear_hover_ports()
@@ -2015,6 +2174,8 @@ class ShapeCanvas(ScrolledWindow):
         if not modifier and not already_selected:
             self.deselect()
         self.select(shape)  # will auto create various Nodes attached to points on the shape
+        move_shapes = [s for s in self.getSelectedShapes() if not isinstance(s, Node)]
+        self._drag_start_hull = self._hull(move_shapes) if move_shapes else None
 
         self.Refresh()
 
@@ -2038,6 +2199,7 @@ class ShapeCanvas(ScrolledWindow):
         resize_node = self._dragging_resize_node
         self._dragging_resize_node = None
         self._drag_started = False
+        self._guides = []
         try:
             # Hit-test before refreshing the bounds: moving content to negative
             # coordinates changes the scroll origin, and re-deriving it first
@@ -2124,6 +2286,9 @@ class ShapeCanvas(ScrolledWindow):
             self._pan_move(event)
             return
         if not event.Dragging():
+            if self._guides:
+                self._guides = []
+                self.Refresh()
             self._update_hover_ports(event)
             return
         # Corner resizes are proportional by default; Shift frees the aspect
@@ -2139,6 +2304,17 @@ class ShapeCanvas(ScrolledWindow):
         x = point[0] - self.currentPoint[0]
         y = point[1] - self.currentPoint[1]
         self._dump_canvas_info("OnMotion", point, x, y)
+
+        move_shapes = [s for s in self.getSelectedShapes() if not isinstance(s, Node)]
+        if move_shapes and self._drag_start_hull is not None:
+            # Snap from the total offset since mouse-down, not the per-event
+            # delta, so guides do not glue the shape in place.
+            total_x = point[0] - self._drag_origin_diagram[0]
+            total_y = point[1] - self._drag_origin_diagram[1]
+            total_x, total_y = self._snap_drag(move_shapes, self._drag_start_hull, total_x, total_y)
+            current_hull = self._hull(move_shapes)
+            x = self._drag_start_hull[0] + total_x - current_hull[0]
+            y = self._drag_start_hull[1] + total_y - current_hull[1]
 
         for shape in self.getSelectedShapes():
             shape.SetCanvas(self)  # safe-guard repair - ensure the shape knows its canvas

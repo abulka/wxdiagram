@@ -26,6 +26,8 @@ OGLlike attribution.
   eight resize handles (corners + edges; corners proportional by default,
   Shift = free aspect, Alt = from centre), hover ports, and drag
   port-to-shape to connect.
+- **Grid and guides**: optional background grid, snap-to-grid and magnetic
+  alignment guides to other shapes' edges and centres.
 - **Connectors**: attached lines whose endpoints are clipped to the shapes'
   perimeters, so edges always meet the facing sides and re-route when shapes
   move. Explicit lines support arrowheads (start/middle/end), splines, dashed

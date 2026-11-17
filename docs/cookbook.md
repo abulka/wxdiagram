@@ -50,6 +50,19 @@ negative diagram coordinates is still reachable. Override it alongside
         return self.box_origin()      # (min_x, min_y)
 ```
 
+## Grid and alignment guides
+
+```python
+canvas.showGrid = True            # draw the background grid
+canvas.snapToGrid = True          # snap shape drags to it
+canvas.diagram.SetGridSpacing(20) # diagram units (default 10)
+
+canvas.alignmentGuides = True     # magnetic edges/centres (default on)
+canvas.ALIGN_TOLERANCE = 4        # screen pixels
+```
+
+Hit-testing and drawing only; nothing is stored in the document.
+
 ## Move by top-left coordinates
 
 `Move` takes the shape centre. Layouts and saved positions usually use the

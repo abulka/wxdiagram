@@ -368,6 +368,19 @@ class DemoFrame(wx.Frame):
         )
         self.item_raise.Check(self.canvas.bringClickedShapeToFront)
         self.Bind(wx.EVT_MENU, self.OnToggleRaiseClicked, self.item_raise)
+        self.item_grid = view_menu.AppendCheckItem(wx.ID_ANY, "Show &grid", "Draw the diagram grid")
+        self.item_grid.Check(self.canvas.showGrid)
+        self.Bind(wx.EVT_MENU, self.OnToggleGrid, self.item_grid)
+        self.item_snap = view_menu.AppendCheckItem(
+            wx.ID_ANY, "&Snap to grid", "Snap shape drags to the grid"
+        )
+        self.item_snap.Check(self.canvas.snapToGrid)
+        self.Bind(wx.EVT_MENU, self.OnToggleSnap, self.item_snap)
+        self.item_guides = view_menu.AppendCheckItem(
+            wx.ID_ANY, "Alignment &guides", "Snap to other shapes' edges and centres"
+        )
+        self.item_guides.Check(self.canvas.alignmentGuides)
+        self.Bind(wx.EVT_MENU, self.OnToggleGuides, self.item_guides)
         view_menu.AppendSeparator()
         self._add_item(
             view_menu,
@@ -477,6 +490,16 @@ class DemoFrame(wx.Frame):
 
     def OnToggleRaiseClicked(self, event):
         self.canvas.bringClickedShapeToFront = self.item_raise.IsChecked()
+
+    def OnToggleGrid(self, event):
+        self.canvas.showGrid = self.item_grid.IsChecked()
+        self.canvas.Refresh()
+
+    def OnToggleSnap(self, event):
+        self.canvas.snapToGrid = self.item_snap.IsChecked()
+
+    def OnToggleGuides(self, event):
+        self.canvas.alignmentGuides = self.item_guides.IsChecked()
 
     def OnConnect(self, event):
         selected = self.canvas.getSelectedShapes()

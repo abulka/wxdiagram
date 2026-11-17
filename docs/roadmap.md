@@ -18,7 +18,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ 8-way resize handles (corners + edges)
 - ✅ proportional resize (Shift = free aspect, Alt = from centre)
 - ✅ marquee selection, Shift/Ctrl add, Esc clear, arrow-key nudge
-- grid and alignment guides
+- ✅ grid and alignment guides
 - ✅ undo/redo, z-order, duplicate
 - buffered/HiDPI-aware painting
 - mouse drag tolerance

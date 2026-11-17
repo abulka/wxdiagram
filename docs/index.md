@@ -20,7 +20,8 @@ attribution.
   pointer; drag empty canvas to pan; mouse-wheel scrolling.
 - **Selection and handles** — shift-click multi-select, eight resize handles
   (corners + edges; corners proportional by default, Shift = free aspect,
-  Alt = from centre), hover ports, drag port-to-shape to connect.
+  Alt = from centre), hover ports, drag port-to-shape to connect, an optional
+  grid with snap-to-grid, and magnetic alignment guides.
 - **Connectors** — attached lines clipped to shape perimeters, arrowheads,
   splines, dashed pens, and bend control points.
 - **Shapes** — rectangles, ellipses, polygons, points, lines, bitmaps, divided

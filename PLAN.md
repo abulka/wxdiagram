@@ -266,8 +266,8 @@ Source reference: `/Users/andy/Devel/shape-studio/src/ui/canvas.rs`,
 
 - ✅ 8 resize handles; ✅ proportional resize by default, Shift = free;
   ✅ Alt = resize from centre.
-- Marquee selection; Shift/Ctrl add; Esc clear; arrow-key nudge.
-- Grid + alignment guides.
+- ✅ Marquee selection; Shift/Ctrl add; Esc clear; arrow-key nudge.
+- ✅ Grid + alignment guides (`Diagram.Snap`/grid API, guide snapping + lines).
 - Undo/redo (snapshot or command pattern).
 - Z-order: send to back / bring to front; duplicate.
 - Stable IDs + `next_id` in the document format.

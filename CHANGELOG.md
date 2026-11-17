@@ -58,6 +58,15 @@ pynsource canvas needs, without pulling any application code into the library.
 - Alt while dragging a resize handle grows/shrinks the shape from its centre.
 - Shape drags and resizes ignore pointer movement below `DRAG_TOLERANCE`
   (3 px), so a click with a small hand tremor no longer nudges the shape.
+- Grid and snapping (classic OGL API): `Diagram.SetGridSpacing()` /
+  `GetGridSpacing()`, `SetSnapToGrid()` / `GetSnapToGrid()` and `Snap(x, y)`,
+  plus `ShapeCanvas.Snap()` and the `showGrid` / `snapToGrid` flags.  The grid
+  is drawn only when `showGrid` is on; snapping is off by default.
+- Alignment guides: while dragging, a shape snaps to other rectangles' edges
+  and centres within `ALIGN_TOLERANCE` (4 screen px) and dashed guide lines
+  are drawn.  `alignmentGuides` turns it off.  Snapping is computed from the
+  total drag offset, so a shape is not stuck to a guide as the pointer moves
+  away.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit
