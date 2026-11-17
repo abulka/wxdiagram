@@ -1867,10 +1867,13 @@ class ShapeCanvas(ScrolledWindow):
         self.begin_undo()
         shape.OnLeftDown(event)  # some shapes love this, Nodes and ConnectionShape don't implement
 
-        # Deselect all other shapes before selecting the current shape, unless shift is down.
-        # This must happen for *every* kind of shape (including lines and nodes), not just
-        # Selectable ones, otherwise the previous shape's handles stay behind.
-        if not (event.ShiftDown() or self._ctrl(event)):
+        # Deselect all other shapes before selecting the current shape, unless
+        # shift/ctrl is down or the clicked shape is already part of the current
+        # selection.  Keeping an existing multi-selection is what lets a drag
+        # move the whole group.
+        modifier = event.ShiftDown() or self._ctrl(event)
+        already_selected = shape in self.getSelectedShapes()
+        if not modifier and not already_selected:
             self.deselect()
         self.select(shape)  # will auto create various Nodes attached to points on the shape
 

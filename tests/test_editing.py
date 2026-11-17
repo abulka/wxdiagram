@@ -194,3 +194,26 @@ def test_undo_mouse_move(wx_app):
     canvas.undo()
     assert (shape.x[0], shape.y[0]) == start
     frame.Destroy()
+
+
+def test_dragging_one_of_multiple_selected_moves_all(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    first = _add_rect(canvas, 100, 100, 200, 200)
+    second = _add_rect(canvas, 300, 300, 400, 400)
+    canvas.SetScrollbars(1, 1, 2000, 2000, 0, 0)
+    wx.Yield()
+
+    canvas.select(first)
+    canvas.select(second)
+    start_first = (first.x[0], first.y[0])
+    start_second = (second.x[0], second.y[0])
+
+    centre = (first.GetX(), first.GetY())
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, centre, down=True))
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (centre[0] + 20, centre[1] + 10), down=True))
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, (centre[0] + 20, centre[1] + 10)))
+
+    assert (first.x[0] - start_first[0], first.y[0] - start_first[1]) == (20, 10)
+    assert (second.x[0] - start_second[0], second.y[0] - start_second[1]) == (20, 10)
+    assert set(canvas.getSelectedShapes()) == {first, second}
+    frame.Destroy()

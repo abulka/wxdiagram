@@ -19,6 +19,8 @@ pynsource canvas needs, without pulling any application code into the library.
 - Marquee selection (plain drag on empty canvas), Shift/Ctrl additive marquee,
   Esc to clear, arrow-key nudge (Shift = 10px), duplicate, bring-to-front /
   send-to-back, and a snapshot-based undo/redo stack.
+- Clicking a shape that is already selected keeps the multi-selection, so a
+  drag moves the whole group (clicking an unselected shape still selects it).
 - `Shape.marqueeSelectable` so labels and decorations can opt out of marquee
   selection.
 
