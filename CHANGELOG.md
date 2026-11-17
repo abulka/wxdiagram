@@ -83,11 +83,12 @@ pynsource canvas needs, without pulling any application code into the library.
   part of the saved regions, and line hit-testing now includes the label boxes,
   so clicking a label selects the edge.
 - Edge routing: `wxdiagram.routing.route_edge()` (also exported as
-  `wxdiagram.route_edge`) and the opt-in `LineShape.autoRoute` pick a straight
-  segment when it is clear, a deflected spline when that dodges unrelated
-  boxes, and an orthogonal lane as a last resort.  Parallel edges between the
-  same two shapes are spread into separate lanes.  Off by default, so existing
-  diagrams keep their exact look.
+  `wxdiagram.route_edge`) and `LineShape.autoRoute` pick a straight segment
+  when it is clear, a deflected spline when that dodges unrelated boxes, and an
+  orthogonal lane as a last resort.  `autoRoute = "curved"` draws a gentle
+  bezier even when the path is clear (the usual UML look); the demo uses it for
+  its connections.  Parallel edges between the same two shapes are spread into
+  separate lanes.  `False` (default) keeps existing diagrams straight.
 - The scrollable area now starts at the content origin: `getContentOrigin()`
   returns the minimum x/y of the shapes, so content moved or resized into
   negative diagram coordinates stays reachable and is framed by zoom-to-fit

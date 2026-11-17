@@ -79,11 +79,23 @@ def _quadratic(p1, control, p2, steps=CURVE_SAMPLES):
     return points
 
 
-def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND, spread=0.0):
+def route_edge(
+    p1,
+    p2,
+    obstacles,
+    padding=ROUTE_PADDING,
+    bend=ROUTE_BEND,
+    spread=0.0,
+    prefer_curve=False,
+):
     """Route an edge from ``p1`` to ``p2`` avoiding ``obstacles``.
 
     Returns ``(points, style)`` where style is ``straight``, ``curved`` or
     ``orthogonal``.  Falls back to the straight segment if nothing clears.
+
+    ``prefer_curve`` asks for a free bezier even when the straight segment is
+    clear (the usual look for UML class edges).  Otherwise a clear segment stays
+    straight and curves are only used to dodge boxes.
 
     ``spread`` shifts the route sideways (perpendicular to the edge) so parallel
     edges between the same pair of shapes do not overlap.  For a straight edge
@@ -114,10 +126,23 @@ def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND, spread
             + [points[-1]]
         )
 
-    if not obstacles or _polyline_clear([p1, p2], obstacles, padding):
+    if not prefer_curve and (
+        not obstacles or _polyline_clear([p1, p2], obstacles, padding)
+    ):
         return spread_points([p1, p2], "straight"), "straight"
 
-    for distance in (bend, bend * 2.0, bend * 3.0):
+    # A gentle free curve first when the caller wants curved edges; the larger
+    # deflections then act as obstacle avoidance.
+    distances = []
+    if prefer_curve:
+        distances.append(min(bend, max(12.0, length * 0.25)))
+    distances.extend((bend, bend * 2.0, bend * 3.0))
+
+    seen = set()
+    for distance in distances:
+        if distance in seen:
+            continue
+        seen.add(distance)
         for sign in (1.0, -1.0):
             # The returned middle point is *on* the drawn spline; convert it to
             # a quadratic Bezier control point for the clearance test.
@@ -129,7 +154,9 @@ def route_edge(p1, p2, obstacles, padding=ROUTE_PADDING, bend=ROUTE_BEND, spread
                 2.0 * on_curve[0] - mid[0],
                 2.0 * on_curve[1] - mid[1],
             )
-            if _polyline_clear(_quadratic(p1, control, p2), obstacles, padding):
+            if not obstacles or _polyline_clear(
+                _quadratic(p1, control, p2), obstacles, padding
+            ):
                 return spread_points([p1, on_curve, p2], "curved"), "curved"
 
     # Orthogonal fallback: an L-ish route through a clear lane.

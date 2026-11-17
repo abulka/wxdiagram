@@ -28,8 +28,11 @@ from . import routing
 
 
 class LineShape(LineShapeBase, Selectable, Resizeable):
-    #: Route attached lines around unrelated rectangles (opt-in; straight is
-    #: the default so existing diagrams keep their exact look).
+    #: Route attached lines around unrelated rectangles.  ``False`` (default)
+    #: keeps the exact straight-line look; ``True`` avoids obstacles only;
+    #: ``"curved"`` draws a free bezier even when the path is clear (the usual
+    #: UML look), still escalating to a bigger bend or an orthogonal lane when
+    #: boxes are in the way.
     autoRoute = False
 
     def __init__(self):
@@ -898,7 +901,13 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
 
         start = (self._lineControlPoints[0][0], self._lineControlPoints[0][1])
         end = (self._lineControlPoints[-1][0], self._lineControlPoints[-1][1])
-        points, style = routing.route_edge(start, end, obstacles, spread=self._lane_offset())
+        points, style = routing.route_edge(
+            start,
+            end,
+            obstacles,
+            spread=self._lane_offset(),
+            prefer_curve=self.autoRoute == "curved",
+        )
         if len(points) != len(self._lineControlPoints):
             self.MakeLineControlPoints(len(points))
         for control, point in zip(self._lineControlPoints, points):

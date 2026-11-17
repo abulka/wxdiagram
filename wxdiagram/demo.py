@@ -232,12 +232,19 @@ def _populate(canvas):
     # -- connections: attached lines, routed via the box perimeters ---------------
     uses = canvas.join_shapes(client, controller)
     if uses is not None:
+        uses.autoRoute = "curved"
         uses.AddText("uses")
-    canvas.join_shapes(repository, service)
+        uses.UpdateRoute()
+    stores = canvas.join_shapes(repository, service)
+    if stores is not None:
+        stores.autoRoute = "curved"
+        stores.UpdateRoute()
     # vertical relationship: controller bottom -> service top
     delegates = canvas.join_shapes(controller, service)
     if delegates is not None:
+        delegates.autoRoute = "curved"
         delegates.AddText("delegates")
+        delegates.UpdateRoute()
 
     for caption in captions:
         canvas.InsertShape(caption, 999)

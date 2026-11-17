@@ -39,6 +39,24 @@ def test_curved_route_clears_the_obstacle():
         assert not segment_intersects_rect(first, second, obstacle, padding=4)
 
 
+def test_prefer_curve_bends_a_clear_edge():
+    points, style = route_edge((0, 0), (200, 0), [], prefer_curve=True)
+
+    assert style == "curved"
+    assert len(points) == 3
+    assert points[0] == (0.0, 0.0)
+    assert points[2] == (200.0, 0.0)
+    assert points[1][1] == pytest.approx(48.0)  # gentle, span-proportional bend
+
+
+def test_prefer_curve_still_avoids_boxes():
+    obstacle = (80, -30, 120, 30)
+    points, style = route_edge((0, 0), (200, 0), [obstacle], prefer_curve=True)
+
+    assert style == "curved"
+    assert abs(points[1][1]) > 30  # pushed past the box, not just the gentle bend
+
+
 def test_orthogonal_fallback_when_curves_are_blocked():
     # A tall wall blocks the straight line and every curve deflection.
     obstacle = (80, -150, 120, 150)
@@ -165,6 +183,24 @@ def test_parallel_edges_are_spread_apart(wx_app):
     y2 = second._lineControlPoints[0][1]
     assert y1 != y2
     assert abs(y1 - y2) == pytest.approx(14.0)  # default lane spacing
+    frame.Destroy()
+
+
+def test_curved_mode_splines_a_clear_edge(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    a = _block(0, 0, 80, 60)
+    b = _block(320, 0, 400, 60)
+    canvas.AddShape(a)
+    canvas.AddShape(b)
+    line = canvas.join_shapes(a, b)
+    line.autoRoute = "curved"
+
+    style = line.UpdateRoute()
+
+    assert style == "curved"
+    assert line.IsSpline()
+    assert len(line._lineControlPoints) == 3
+    assert abs(line._lineControlPoints[1][1] - 30.0) > 10  # visibly bowed
     frame.Destroy()
 
 

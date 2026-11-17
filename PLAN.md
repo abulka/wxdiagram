@@ -292,7 +292,7 @@ and `layout/route/mod.rs`.
   - ✅ deflect control points when that is enough;
   - ✅ fall back to a rounded orthogonal route.
   All in `wxdiagram/routing.py` (`route_edge`), opt-in via
-  `LineShape.autoRoute`.
+  `LineShape.autoRoute`; `"curved"` draws a free bezier even when clear.
 - ✅ lane spreading for parallel edges (automatic in `LineShape.autoRoute`);
   explicit side selection still to do.
 - ✅ Edge hit-testing (segment corridor + label boxes), ✅ labels
