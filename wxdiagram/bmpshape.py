@@ -131,5 +131,14 @@ class ResizableBitmapShape(BitmapShape):
         BitmapShape.SetBitmap(self, bitmap)
         self._ori_bmp = bitmap
 
+    def move_handle(self, index, dx, dy):
+        """Resize from a drag handle, keeping the opposite corner fixed."""
+        self.x[index] += dx
+        self.y[index] += dy
+        width = max(1, abs(self.x[1] - self.x[0]))
+        height = max(1, abs(self.y[1] - self.y[0]))
+        self.SetSize(width, height)
+        return True
+
 
 __all__ = ["BitmapShape", "ResizableBitmapShape"]

@@ -1590,6 +1590,11 @@ class ShapeCanvas(ScrolledWindow):
                 shape.SetId(shape_id)
                 shape.Show(shown)
                 self._attach_canvas(shape)
+                if getattr(shape, "is_bitmap", False):
+                    shape.SetSize(
+                        max(1, int(abs(shape.x[1] - shape.x[0]))),
+                        max(1, int(abs(shape.y[1] - shape.y[0]))),
+                    )
                 shape.MoveLinks(dc=None)
             self.invalidate_bounds_cache()
             self.update_virtual_size()
@@ -2874,6 +2879,63 @@ class TextShape(Shape):
         self.y[0] += y
 
 
+class SelectableTextShape(TextShape, Selectable):
+    """A text caption that can be selected and moved (no resize handles)."""
+
+    marqueeSelectable = True
+
+    def __init__(self, x=0, y=0, text="", colour="GRAY", font=None):
+        TextShape.__init__(self, x, y, text, colour, font)
+        Selectable.__init__(self)
+        self._measure()
+
+    def _font_for_measure(self):
+        return self._font or wx.Font(
+            10, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL
+        )
+
+    def _measure(self):
+        bitmap = wx.Bitmap(1, 1)
+        dc = wx.MemoryDC(bitmap)
+        try:
+            dc.SetFont(self._font_for_measure())
+            width, height = dc.GetTextExtent(self.label)
+        finally:
+            dc.SelectObject(wx.NullBitmap)
+        self._text_width = width
+        self._text_height = height
+
+    def SetLabel(self, text):
+        self.label = text
+        self._measure()
+
+    def GetBoundingBoxMin(self):
+        return getattr(self, "_text_width", 0), getattr(self, "_text_height", 0)
+
+    def HitTest(self, x, y):
+        width, height = self.GetBoundingBoxMin()
+        left, top = self.x[0], self.y[0]
+        return left <= x <= left + width and top <= y <= top + height
+
+    def draw(self, dc):
+        TextShape.draw(self, dc)
+        # Keep the measured bounds in sync if the font/label changed directly.
+        if (
+            getattr(self, "_text_width", None) is None
+            or getattr(self, "_text_height", None) is None
+        ):
+            self._measure()
+
+
+class ResizableRectangleShape(RectangleShape, Selectable, Resizeable):
+    """A plain rectangle that can be selected and resized."""
+
+    def __init__(self, x=20, y=20, x2=140, y2=100):
+        RectangleShape.__init__(self, x, y, x2, y2)
+        Resizeable.__init__(self)
+        Selectable.__init__(self)
+
+
 class Block(RectangleShape, Connectable, Resizeable, Selectable, Attributable):
     def __init__(self):
         x, y, x2, y2 = 20, 20, 90, 90
@@ -2910,11 +2972,10 @@ class Block(RectangleShape, Connectable, Resizeable, Selectable, Attributable):
             d.ShowModal()
             self.label = d.GetValue()
 
-    # Original - pops up attribute properties editor instantly
     def OnRightDown(self, event):
-        # f = AttributeEditor(None, -1, "props",self)
-        # f.Show(True)
-        wx.MessageBox("You r. down on shape '%s' event is %s" % (self, event))
+        # Kept as a no-op: right-click menus are owned by the application
+        # (see the demo's context menu and pynsource's shape menu).
+        pass
 
     """
     Attempt to have a r.click menu on the shape, but this needs to be done in the shapecanvas window

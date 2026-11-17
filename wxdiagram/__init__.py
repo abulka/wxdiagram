@@ -98,12 +98,14 @@ from .core import (
     LinesShape,
     PointShape,
     RectangleShape,
+    ResizableRectangleShape,
     Resizeable,
     Selectable,
     Shape,
     ShapeCanvas,
     ShapeEvtHandler,
     TextShape,
+    SelectableTextShape,
 )
 from .polygon import PolygonShape
 from .lines import ArrowHead, ControlPoint, LineControlPoint, LineShape
@@ -218,11 +220,13 @@ __all__ = [
     "LinesShape",
     "PointShape",
     "RectangleShape",
+    "ResizableRectangleShape",
     "Resizeable",
     "Selectable",
     "Shape",
     "ShapeEvtHandler",
     "TextShape",
+    "SelectableTextShape",
     "ShapeCanvas",
     "Diagram",
     "PolygonShape",

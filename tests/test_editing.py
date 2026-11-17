@@ -289,3 +289,47 @@ def test_resizable_bitmap_shape(wx_app):
     shape.ResetSize()
     assert shape.GetBitmap().GetWidth() == 40
     assert shape.GetBitmap().GetHeight() == 30
+
+
+def test_resizable_rectangle_selection_creates_handles(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.ResizableRectangleShape(0, 0, 120, 80)
+    canvas.AddShape(shape)
+    canvas.select(shape)
+    assert shape in canvas.getSelectedShapes()
+    assert canvas.nodes
+    frame.Destroy()
+
+
+def test_bitmap_handle_resizes_bitmap(wx_app):
+    image = wx.Image(40, 30)
+    image.SetRGB(wx.Rect(0, 0, 40, 30), 200, 100, 50)
+    shape = wxdiagram.ResizableBitmapShape()
+    shape.SetBitmap(wx.Bitmap(image))
+    shape.x = [0, 40]
+    shape.y = [0, 30]
+    shape.SetSize(40, 30)
+
+    shape.move_handle(1, 20, 10)
+    assert shape.GetBitmap().GetWidth() == 60
+    assert shape.GetBitmap().GetHeight() == 40
+
+
+def test_selectable_text_can_be_selected_and_moved(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    caption = wxdiagram.SelectableTextShape(100, 100, "hello caption")
+    canvas.AddShape(caption)
+    canvas.SetScrollbars(1, 1, 2000, 2000, 0, 0)
+    wx.Yield()
+
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, (110, 105), down=True))
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, (110, 105)))
+    assert caption in canvas.getSelectedShapes()
+
+    centre = (caption.x[0] + 5, caption.y[0] + 5)
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, centre, down=True))
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (centre[0] + 20, centre[1] + 10), down=True))
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, (centre[0] + 20, centre[1] + 10)))
+    assert caption.x[0] == 120
+    assert caption.y[0] == 110
+    frame.Destroy()

@@ -32,6 +32,13 @@ pynsource canvas needs, without pulling any application code into the library.
   z-order, undo/redo, duplicate/delete, captions, bitmaps and image files, plus
   right-click context menus for shapes and empty canvas.
 - Demo shape insertion now repaints immediately instead of waiting for mouse motion.
+- `ResizableRectangleShape` (selectable/resizable plain rectangle) and
+  `SelectableTextShape` (movable captions) added.
+- `ResizableBitmapShape` now resizes the bitmap when dragged by a handle.
+- Demo uses the sample photograph at `examples/assets/sample-image.jpg`;
+  rectangles are resizable and captions are movable.
+- `Block.OnRightDown` no longer pops a debug message box (right-click menus are
+  application-owned).
 - `Shape.marqueeSelectable` so labels and decorations can opt out of marquee
   selection.
 

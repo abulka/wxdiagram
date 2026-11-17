@@ -22,6 +22,8 @@
 #   * Delete key removes the selection.  Ctrl+C / Ctrl+V copy and paste it.
 # ---------------------------------------------------------------------------------------------
 
+from pathlib import Path
+
 import wx
 
 import wxdiagram
@@ -37,9 +39,9 @@ def _measure_dc():
 
 
 def make_caption(x, y, text):
-    """A non-interactive section heading."""
+    """A selectable, movable section heading."""
     font = wx.Font(10, wx.FONTFAMILY_SWISS, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-    return wxdiagram.TextShape(x, y, text, colour=wx.Colour(90, 90, 90), font=font)
+    return wxdiagram.SelectableTextShape(x, y, text, colour=wx.Colour(90, 90, 90), font=font)
 
 
 def make_class_box(name, attributes, methods, left, top, width=230):
@@ -98,7 +100,30 @@ def make_polyline(left, top):
     return line
 
 
+SAMPLE_IMAGE = Path(__file__).resolve().parent.parent / "examples" / "assets" / "sample-image.jpg"
+
+
 def make_bitmap_shape(left, top):
+    """A resizable bitmap, using the sample image when available."""
+    shape = wxdiagram.ResizableBitmapShape()
+    if SAMPLE_IMAGE.exists():
+        image = wx.Image(str(SAMPLE_IMAGE), wx.BITMAP_TYPE_ANY)
+        if image.IsOk():
+            width, height = image.GetWidth(), image.GetHeight()
+            max_w, max_h = 220, 180
+            scale = min(1.0, max_w / width, max_h / height)
+            if scale < 0.999:
+                image = image.Scale(
+                    max(1, int(width * scale)),
+                    max(1, int(height * scale)),
+                    wx.IMAGE_QUALITY_HIGH,
+                )
+            shape.SetBitmap(wx.Bitmap(image))
+            shape.SetFilename(str(SAMPLE_IMAGE))
+            shape.move_to(left, top)
+            return shape
+
+    # Fallback when running from an installed wheel without the examples tree.
     size = wx.Size(160, 110)
     image = wx.Image(size)
     for row in range(size.height):
@@ -107,7 +132,6 @@ def make_bitmap_shape(left, top):
             g = int(120 + 70 * (1 - col / size.width))
             b = 200 - int(70 * row / size.height)
             image.SetRGB(col, row, r, g, b)
-    shape = wxdiagram.BitmapShape()
     shape.SetBitmap(wx.Bitmap(image))
     shape.move_to(left, top)
     return shape
@@ -179,7 +203,7 @@ def _populate(canvas):
 
     # -- basic shapes -----------------------------------------------------------------
     captions.append(make_caption(620, 260, "BASIC SHAPES"))
-    rectangle = wxdiagram.RectangleShape(620, 300, 740, 370)
+    rectangle = wxdiagram.ResizableRectangleShape(620, 300, 740, 370)
     ellipse = wxdiagram.ConnectableEllipseShape()
     ellipse.x = [760, 880]
     ellipse.y = [300, 370]
@@ -275,8 +299,8 @@ class DemoFrame(wx.Frame):
         self._add_item(
             add_menu,
             "&Rectangle\tCtrl+R",
-            lambda e: self._add_shape(wxdiagram.RectangleShape(0, 0, 120, 80)),
-            "RectangleShape",
+            lambda e: self._add_shape(wxdiagram.ResizableRectangleShape(0, 0, 120, 80)),
+            "ResizableRectangleShape",
         )
         self._add_item(
             add_menu,
@@ -314,13 +338,13 @@ class DemoFrame(wx.Frame):
             add_menu,
             "&Text caption",
             lambda e: self._add_shape(make_caption(300, 500, "A caption")),
-            "Non-interactive TextShape",
+            "SelectableTextShape - movable caption",
         )
         self._add_item(
             add_menu,
-            "&Bitmap",
+            "Sample &Bitmap",
             lambda e: self._add_shape(make_bitmap_shape(300, 300)),
-            "BitmapShape",
+            "ResizableBitmapShape from examples/assets",
         )
         self._add_item(add_menu, "&Image from file...", self.OnAddImage, "ResizableBitmapShape")
         self._add_item(
