@@ -2,7 +2,7 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
-## 0.2.0 — 2026-11-17
+## 0.2.1 — 2026-11-17
 
 - `Shape.MoveTo` for top-left layout coordinates (refreshes attached lines).
 - Overridable `ShapeCanvas.getContentBounds()` for zoom-to-fit.

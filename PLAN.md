@@ -9,7 +9,7 @@ Supersedes: `ogl2/PLAN-2026.md` (keep that file as history; add a
 
 - Pynsource migration started on the `pynsource-1.87` library branch and the
   pynsource `wxdiagram-canvas` branch.
-- `0.2.0` adds the integration hooks: `Shape.MoveTo`, overridable
+- `0.2.1` adds the integration hooks: `Shape.MoveTo`, overridable
   `getContentBounds()`, and documented `autoVirtualSize` / `zoomInputEnabled`
   opt-outs.
 - pynsource now delegates the whole viewport to wxdiagram (zoom, Ctrl+wheel,
@@ -259,7 +259,7 @@ Acceptance:
 - pynsource Community still works on the vendored `src/ogl`.
 - CI builds mac/win/linux/snap.
 
-## 7. Phase 5 — 0.2.0 Interaction (pinch from shape-studio)
+## 7. Phase 5 — 0.2.x Interaction (pinch from shape-studio)
 
 Source reference: `/Users/andy/Devel/shape-studio/src/ui/canvas.rs`,
 `src/shape.rs`, `src/app.rs`.

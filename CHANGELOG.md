@@ -1,9 +1,13 @@
 # Changelog
 
-## 0.2.0 — 2026-11-17
+## 0.2.1 — 2026-11-17
 
-The pynsource integration release. Adds the small number of hooks the
-pynsource canvas needs, without pulling any application code into the library.
+The pynsource integration and interaction release.  This is the first upload
+since 0.1.0: 0.2.0 was prepared but never published, so its changes are listed
+here too.
+
+Adds the small number of hooks the pynsource canvas needs, without pulling any
+application code into the library, plus the interaction/routing work below.
 
 ### Added
 

@@ -15,6 +15,19 @@ OGLlike attribution.
 
 ![wxdiagram demo](https://raw.githubusercontent.com/abulka/wxdiagram/main/docs/demo.png)
 
+[![Docs](https://img.shields.io/badge/docs-abulka.github.io%2Fwxdiagram-blue)](https://abulka.github.io/wxdiagram/)
+
+## Documentation
+
+- [Getting started](https://abulka.github.io/wxdiagram/getting-started/)
+- [Tutorials](https://abulka.github.io/wxdiagram/tutorials/canvas-and-shapes/):
+  [canvas and shapes](https://abulka.github.io/wxdiagram/tutorials/canvas-and-shapes/),
+  [edges, labels and arrows](https://abulka.github.io/wxdiagram/tutorials/edges-and-labels/),
+  [images, composites and export](https://abulka.github.io/wxdiagram/tutorials/images-composites-export/)
+- [Cookbook](https://abulka.github.io/wxdiagram/cookbook/)
+- [API reference](https://abulka.github.io/wxdiagram/api/)
+- [Migration from wx.lib.ogl](https://abulka.github.io/wxdiagram/migration-from-wx-lib-ogl/)
+
 ## Features
 
 - **Canvas with real zoom/pan**: `ZoomIn`, `ZoomOut`, `ZoomTo`, `ZoomReset`,
@@ -126,7 +139,7 @@ comparison with `wx.lib.ogl`.
 
 ## Status
 
-Beta (`0.2.0`). The public API is still settling, so pin a version if you
+Beta (`0.2.1`). The public API is still settling, so pin a version if you
 depend on it. pynsource is the main downstream consumer.
 
 ## License
