@@ -233,7 +233,7 @@ def _populate(canvas):
 
     edge_pair(450, 450, "straight", "straight", "LIGHT BLUE")
     edge_pair(520, 520, "curved", "curved", "PALE GREEN")
-    edge_pair(590, 590, "avoid", "avoid", "PALE GREEN", blocker=True)
+    edge_pair(590, 590, "auto", "auto", "PALE GREEN", blocker=True)
     edge_pair(670, 650, "orthogonal", "orthogonal", "LIGHT YELLOW")
 
     # -- lines and arrows -------------------------------------------------------------
@@ -249,12 +249,12 @@ def _populate(canvas):
     # -- connections: attached lines, routed via the box perimeters ---------------
     uses = canvas.join_shapes(client, controller)
     if uses is not None:
-        uses.SetRouteMode("avoid")
+        uses.SetRouteMode("auto")
         uses.AddText("uses")
     # vertical relationship: controller bottom -> service top
     delegates = canvas.join_shapes(controller, service)
     if delegates is not None:
-        delegates.SetRouteMode("avoid")
+        delegates.SetRouteMode("auto")
         delegates.AddText("delegates")
 
     for caption in captions:

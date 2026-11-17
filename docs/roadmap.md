@@ -34,7 +34,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ hybrid curved connectors with obstacle avoidance (straight → curved → orthogonal, `route_edge`)
 - ✅ orthogonal fallback; ✅ lane spreading for parallel edges; side selection still to do
 - ✅ edge hit-testing and labels (middle/start/end)
-- ✅ per-edge style switching (`SetRouteMode`, demo/pynsource right-click with ticks)
+- ✅ per-edge style switching (`SetRouteMode`, demo/pynsource right-click with ticks); `auto` = straight-or-curved, no orth
 - markers on curves, label collision avoidance
 
 ## 0.4 — layout

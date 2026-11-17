@@ -34,8 +34,12 @@ def _catmull_rom_points(points, steps=12):
     padded = [points[0]] + list(points) + [points[-1]]
     sampled = []
     for i in range(1, len(padded) - 2):
-        p0, p1, p2, p3 = (tuple(padded[i - 1]), tuple(padded[i]),
-                          tuple(padded[i + 1]), tuple(padded[i + 2]))
+        p0, p1, p2, p3 = (
+            tuple(padded[i - 1]),
+            tuple(padded[i]),
+            tuple(padded[i + 1]),
+            tuple(padded[i + 2]),
+        )
         for step in range(steps):
             t = step / steps
             t2 = t * t
@@ -58,10 +62,11 @@ def _catmull_rom_points(points, steps=12):
 
 
 class LineShape(LineShapeBase, Selectable, Resizeable):
-    #: Route attached lines around unrelated rectangles.  ``False`` (default)
-    #: keeps the exact straight-line look; ``True`` avoids obstacles only;
-    #: ``"curved"`` draws a free bezier even when the path is clear (the usual
-    #: UML look); ``"orthogonal"`` always uses an L/Z route with side stubs.
+    #: How attached lines are routed.  ``False`` (default) keeps the exact
+    #: straight-line look; ``"auto"`` (or legacy ``True``) is straight when the
+    #: path is clear and curved when a box blocks it, never orthogonal;
+    #: ``"curved"`` always draws a free bezier; ``"orthogonal"`` is the explicit
+    #: stub + L/Z style.
     autoRoute = False
 
     def __init__(self):
@@ -983,11 +988,12 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         bend is dropped); ``avoid`` bends only when a box is in the way;
         ``curved`` always bows into a spline.
         """
-        if mode not in ("straight", "avoid", "curved", "orthogonal"):
+        if mode not in ("straight", "auto", "avoid", "curved", "orthogonal"):
             raise ValueError(f"Unknown route mode: {mode!r}")
         self.autoRoute = {
             "straight": False,
-            "avoid": True,
+            "auto": "auto",
+            "avoid": "auto",  # legacy alias
             "curved": "curved",
             "orthogonal": "orthogonal",
         }[mode]
@@ -1005,7 +1011,7 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             return "curved"
         if self.autoRoute == "orthogonal":
             return "orthogonal"
-        return "avoid" if self.autoRoute else "straight"
+        return "auto" if self.autoRoute else "straight"
 
     def ResetRoute(self):
         """Collapse the edge to a straight, attached two-point line."""

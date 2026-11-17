@@ -60,12 +60,22 @@ def test_prefer_curve_still_avoids_boxes():
 def test_orthogonal_fallback_when_curves_are_blocked():
     # A tall wall blocks the straight line and every curve deflection.
     obstacle = (80, -150, 120, 150)
-    points, style = route_edge((0, 0), (200, 0), [obstacle])
+    points, style = route_edge((0, 0), (200, 0), [obstacle], prefer_orthogonal=True)
 
     assert style == "orthogonal"
     assert len(points) == 4
     for first, second in zip(points, points[1:]):
         assert not segment_intersects_rect(first, second, obstacle, padding=4)
+
+
+def test_auto_mode_never_uses_orthogonal():
+    # Straight and every curve are blocked; auto must still avoid a right-angle
+    # detour and fall back to its largest deflection.
+    obstacle = (80, -150, 120, 150)
+    points, style = route_edge((0, 0), (200, 0), [obstacle])
+
+    assert style == "curved"
+    assert len(points) == 3
 
 
 def test_route_avoids_every_obstacle():
@@ -172,7 +182,12 @@ def test_orthogonal_route_uses_side_normal_stubs():
     obstacle = (80, -150, 120, 150)
 
     points, style = route_edge(
-        (0, 0), (200, 0), [obstacle], start_normal=(-1, 0), end_normal=(1, 0)
+        (0, 0),
+        (200, 0),
+        [obstacle],
+        prefer_orthogonal=True,
+        start_normal=(-1, 0),
+        end_normal=(1, 0),
     )
 
     assert style == "orthogonal"
@@ -203,6 +218,9 @@ def test_route_mode_round_trip(wx_app):
     assert not line.IsSpline()
     assert len(line._lineControlPoints) == 2
     assert line._lineControlPoints[0][1] == pytest.approx(30.0)
+
+    line.SetRouteMode("avoid")  # legacy alias for "auto"
+    assert line.GetRouteMode() == "auto"
     frame.Destroy()
 
 

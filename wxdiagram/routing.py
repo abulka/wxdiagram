@@ -104,6 +104,9 @@ def route_edge(
     straight/curve tiers and goes straight to an orthogonal L/Z route.  Otherwise
     a clear segment stays straight and curves are only used to dodge boxes.
 
+    Orthogonal routing is *only* used when ``prefer_orthogonal`` is set: the
+    "auto" mode (straight or curved) never produces right-angle detours.
+
     ``spread`` shifts the route sideways (perpendicular to the edge) so parallel
     edges between the same pair of shapes do not overlap.  For a straight edge
     both endpoints move (along the shape sides); for the other styles only the
@@ -125,6 +128,16 @@ def route_edge(
     # Perpendicular to the edge, used to bulge curves and pick lanes.
     perp = (-dy / length, dx / length)
     mid = ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0)
+
+    # Bow away from both boxes when we know the attachment sides (better
+    # tangents than a chord-perpendicular bow for facing/opposing sides).
+    bow = perp
+    if start_normal and end_normal:
+        normal_x = start_normal[0] + end_normal[0]
+        normal_y = start_normal[1] + end_normal[1]
+        normal_length = math.hypot(normal_x, normal_y)
+        if normal_length > 0.5:
+            bow = (normal_x / normal_length, normal_y / normal_length)
 
     def spread_points(points, style):
         if not spread:
@@ -152,6 +165,7 @@ def route_edge(
     distances.extend((bend, bend * 2.0, bend * 3.0))
 
     seen = set()
+    best_curve = None
     for distance in distances if not prefer_orthogonal else ():
         if distance in seen:
             continue
@@ -160,15 +174,21 @@ def route_edge(
             # The returned middle point is *on* the drawn spline; convert it to
             # a quadratic Bezier control point for the clearance test.
             on_curve = (
-                mid[0] + perp[0] * distance * sign,
-                mid[1] + perp[1] * distance * sign,
+                mid[0] + bow[0] * distance * sign,
+                mid[1] + bow[1] * distance * sign,
             )
             control = (
                 2.0 * on_curve[0] - mid[0],
                 2.0 * on_curve[1] - mid[1],
             )
+            points = [p1, on_curve, p2]
             if not obstacles or _polyline_clear(_quadratic(p1, control, p2), obstacles, padding):
-                return spread_points([p1, on_curve, p2], "curved"), "curved"
+                return spread_points(points, "curved"), "curved"
+            best_curve = points  # last/largest deflection: best effort
+
+    if best_curve is not None:
+        # No clear curve, and auto/curved must not fall back to orthogonal.
+        return spread_points(best_curve, "curved"), "curved"
 
     # Orthogonal fallback.  Leave each shape along its attachment normal for a
     # short stub, so the edge never runs along the box side, then pick the

@@ -54,11 +54,11 @@ negative diagram coordinates is still reachable. Override it alongside
 
 ```python
 line = canvas.join_shapes(a, b)
-line.autoRoute = True        # avoid obstacles (straight when clear)
+line.autoRoute = "auto"      # straight, or curved around boxes (no right angles)
 line.autoRoute = "curved"    # always bow the edge (free bezier)
 line.UpdateRoute()           # "straight", "curved" or "orthogonal"
 
-line.SetRouteMode("straight")  # or "avoid" / "curved" / "orthogonal"
+line.SetRouteMode("straight")  # or "auto" / "curved" / "orthogonal"
 line.GetRouteMode()
 ```
 
