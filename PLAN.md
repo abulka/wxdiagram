@@ -5,6 +5,18 @@ and the 0.2+ feature phases remain.
 Supersedes: `ogl2/PLAN-2026.md` (keep that file as history; add a
 “superseded by `wxdiagram/PLAN.md`” note when we are in build mode).
 
+## Progress log (2026-11-17)
+
+- Pynsource migration started on the `pynsource-1.87` library branch and the
+  pynsource `wxdiagram-canvas` branch.
+- `0.2.0` adds the integration hooks: `Shape.MoveTo`, overridable
+  `getContentBounds()`, and documented `autoVirtualSize` / `zoomInputEnabled`
+  opt-outs.
+- Decision update: pynsource keeps **one** canvas (`wxdiagram`), removes the
+  vendored `src/ogl` and the `ogl2` dependency, and makes the diagram free.
+  Pro remains only for ALSM module visualisation. The release stays on `1.x`
+  because `rego` keys licences off `int(APP_VERSION)`.
+
 ## Progress log (2026-11-16)
 
 - New clean-history repo created from the `ogl2` `standalone` tree.

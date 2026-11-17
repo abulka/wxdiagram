@@ -53,6 +53,45 @@ def test_public_names_exist():
     assert not missing, f"wxdiagram is missing public names: {missing}"
 
 
+# The names pynsource imports or relies on. Keep this list in sync with
+# pynsource's src/tests/test_wxdiagram_contract.py.
+PYNSOURCE_NAMES = [
+    "Attributable",
+    "BitmapShape",
+    "Connectable",
+    "Diagram",
+    "DividedShape",
+    "LineShape",
+    "PolygonShape",
+    "RectangleShape",
+    "Resizeable",
+    "Selectable",
+    "Shape",
+    "ShapeCanvas",
+    "ShapeEvtHandler",
+    "ShapeRegion",
+    "GetArrowPoints",
+    "GetPointOnLine",
+    "initialize",
+    "line_control_points_to_xy_points",
+]
+
+
+def test_pynsource_names_exist():
+    missing = [name for name in PYNSOURCE_NAMES if getattr(wxdiagram, name, None) is None]
+    assert not missing, f"wxdiagram is missing names pynsource needs: {missing}"
+
+
+def test_canvas_extension_points():
+    """Subclass hooks used by pynsource and other applications."""
+    assert hasattr(wxdiagram.Shape, "MoveTo")
+    assert hasattr(wxdiagram.ShapeCanvas, "getContentBounds")
+    for name in ["update_virtual_size", "ZoomToFit", "ZoomIn", "ZoomOut", "ZoomReset"]:
+        assert hasattr(wxdiagram.ShapeCanvas, name), name
+    # class-level defaults that applications tune
+    assert wxdiagram.ShapeCanvas.ZOOM_MIN_SCALE <= 1.0
+
+
 def test_all_exported_names_are_importable():
     for name in wxdiagram.__all__:
         assert getattr(wxdiagram, name, None) is not None, (

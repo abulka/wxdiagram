@@ -30,6 +30,43 @@ canvas.AddShape(line)
 canvas.ZoomToFit(margin=40)
 ```
 
+To leave decoration out of the calculation, override `getContentBounds()`.
+It returns `(max_x, max_y)` in diagram coordinates:
+
+```python
+class UmlCanvas(wxdiagram.ShapeCanvas):
+    def getContentBounds(self):
+        # only class boxes matter for fit-to-window, not captions or edges
+        return self.box_bounds()
+```
+
+## Move by top-left coordinates
+
+`Move` takes the shape centre. Layouts and saved positions usually use the
+top-left corner, so use `MoveTo`. It also refreshes attached lines:
+
+```python
+shape.MoveTo(dc, node.left, node.top)   # dc may be None
+```
+
+## Manage scrolling yourself
+
+Applications that already own the scrollbars can switch off the library's
+automatic virtual size and mouse-wheel handling:
+
+```python
+canvas.autoVirtualSize = False   # don't resize scrollbars after shape changes
+canvas.zoomInputEnabled = False  # don't handle Ctrl+wheel / pinch / drag-pan
+
+# ...and handle the events in your subclass:
+class AppCanvas(wxdiagram.ShapeCanvas):
+    def OnMouseWheel(self, event):
+        if event.ShiftDown():
+            self.on_layout_wheel(event)   # application-specific
+            return
+        super().OnMouseWheel(event)       # Ctrl+wheel zoom, plain scrolling
+```
+
 ## Keep labels out of the way
 
 `TextShape` is a non-interactive caption: it is not hit-tested and never

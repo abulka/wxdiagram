@@ -226,3 +226,59 @@ def test_zoom_out_never_loses_content(wx_app):
     # the content origin must still be reachable on screen
     assert 0 <= x < client_w
     assert 0 <= y < client_h
+
+
+def test_auto_virtual_size_can_be_disabled(wx_app):
+    """Applications that manage their own scrollbars (pynsource) opt out."""
+    frame, canvas = _make_canvas(wx_app)
+    canvas.autoVirtualSize = False
+    before = canvas.GetVirtualSize()
+    canvas.AddShape(wxdiagram.RectangleShape(0, 0, 5000, 4000))
+    assert canvas.GetVirtualSize() == before
+
+
+def test_zoom_input_can_be_disabled(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    canvas.zoomInputEnabled = False
+    _add_big_content(canvas)
+    scale = canvas.scalex
+
+    evt = _wheel_event(wx.Point(300, 200), 120)
+    evt.SetControlDown(True)
+    canvas.OnMouseWheel(evt)
+
+    assert canvas.scalex == scale
+
+
+def test_subclass_can_handle_shift_wheel_and_delegate_the_rest(wx_app):
+    """The pattern pynsource uses for Shift+wheel layout expand/contract."""
+
+    class ShiftAwareCanvas(wxdiagram.ShapeCanvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.shift_wheel = 0
+
+        def OnMouseWheel(self, event):
+            if event.ShiftDown():
+                self.shift_wheel += 1
+                return
+            super().OnMouseWheel(event)
+
+    frame = wx.Frame(None, size=(800, 600))
+    canvas = ShiftAwareCanvas(frame)
+    canvas.SetDiagram(wxdiagram.Diagram())
+    frame.Show()
+    frame.Layout()
+    wx.Yield()
+    _add_big_content(canvas)
+
+    shift_evt = _wheel_event(wx.Point(300, 200), 120)
+    shift_evt.SetShiftDown(True)
+    canvas.OnMouseWheel(shift_evt)
+    assert canvas.shift_wheel == 1
+
+    scale = canvas.scalex
+    ctrl_evt = _wheel_event(wx.Point(300, 200), 120)
+    ctrl_evt.SetControlDown(True)
+    canvas.OnMouseWheel(ctrl_evt)
+    assert canvas.scalex > scale

@@ -513,9 +513,11 @@ class Shape(ShapeEvtHandler):
         Move the shape to the given position.
 
         :param `dc`: the device context
-        :param `x`: the x position
-        :param `y`: the y position
+        :param `x`: the x position of the shape's **centre**
+        :param `y`: the y position of the shape's **centre**
         :param `display`: if `True` redraw
+
+        Use :meth:`MoveTo` when working with top-left coordinates.
 
         """
         # old_x = self._xpos
@@ -536,6 +538,22 @@ class Shape(ShapeEvtHandler):
         self.MoveLinks(dc)
         #
         # self.GetEventHandler().OnMovePost(dc, x, y, old_x, old_y, display)
+
+    def MoveTo(self, dc, x, y, display=True):
+        """Move the shape so its top-left corner is at ``(x, y)``.
+
+        Unlike :meth:`Move`, which takes the centre position, this matches the
+        coordinate convention used by layouts and diagram persistence.  Attached
+        lines are refreshed via :meth:`MoveLinks`.
+
+        :param `dc`: the device context (may be ``None``)
+        :param `x`: the x position of the shape's top-left corner
+        :param `y`: the y position of the shape's top-left corner
+        :param `display`: accepted for compatibility; drawing is left to the caller
+        """
+        self.move_to(x, y)
+        self.ResetControlPoints()
+        self.MoveLinks(dc)
 
     def MoveLinks(self, dc):
         """Redraw all the lines attached to the shape."""
@@ -1621,11 +1639,13 @@ class ShapeCanvas(ScrolledWindow):
     def invalidate_bounds_cache(self):
         self._bounds_cache = None
 
-    def _shapes_bounds(self):
-        """Return (max_x, max_y) over all shapes, including composite children."""
-        if self._bounds_cache is not None:
-            return self._bounds_cache
+    def getContentBounds(self):
+        """Return ``(max_x, max_y)`` for the content the canvas should navigate.
 
+        Subclasses can override this to exclude shapes that should not influence
+        zoom-to-fit (for example, edges or decoration).  The default covers every
+        top-level shape and its composite children.
+        """
         max_x = max_y = 0
 
         def visit(shape):
@@ -1640,7 +1660,13 @@ class ShapeCanvas(ScrolledWindow):
             for shape in getattr(self.diagram, "shapes", []):
                 visit(shape)
 
-        self._bounds_cache = (max_x, max_y)
+        return max_x, max_y
+
+    def _shapes_bounds(self):
+        """Return cached ``(max_x, max_y)`` content bounds."""
+        if self._bounds_cache is not None:
+            return self._bounds_cache
+        self._bounds_cache = self.getContentBounds()
         return self._bounds_cache
 
     def _zoom_anchor_point(self, anchor):

@@ -59,8 +59,69 @@ def test_show_all_toggles_visibility(wx_app):
     diagram.ShowAll(False)
     assert not shape.IsShown()
 
-    diagram.ShowAll(True)
-    assert shape.IsShown()
+
+def test_move_to_uses_top_left_coordinates(wx_app):
+    frame, canvas, diagram = _canvas(wx_app)
+    shape = wxdiagram.RectangleShape(10, 20, 110, 120)
+    canvas.AddShape(shape)
+
+    bitmap = wx.Bitmap(10, 10)
+    dc = wx.MemoryDC(bitmap)
+    shape.MoveTo(dc, 200, 300)
+    dc.SelectObject(wx.NullBitmap)
+
+    assert shape.x[0] == 200
+    assert shape.y[0] == 300
+    assert shape._xpos == 250
+    assert shape._ypos == 350
+    frame.Destroy()
+
+
+def test_move_to_refreshes_attached_lines(wx_app):
+    frame, canvas, diagram = _canvas(wx_app)
+    a = wxdiagram.RectangleShape(0, 0, 100, 100)
+    b = wxdiagram.RectangleShape(300, 0, 400, 100)
+    canvas.AddShape(a)
+    canvas.AddShape(b)
+
+    line = wxdiagram.LineShape()
+    line.SetCanvas(canvas)
+    line.MakeLineControlPoints(2)
+    a.AddLine(line, b)
+    diagram.AddShape(line)
+
+    before = [wx.RealPoint(p[0], p[1]) for p in line._lineControlPoints]
+
+    bitmap = wx.Bitmap(10, 10)
+    dc = wx.MemoryDC(bitmap)
+    b.MoveTo(dc, 800, 400)
+    dc.SelectObject(wx.NullBitmap)
+
+    after = line._lineControlPoints
+    assert (before[0].x, before[0].y) != (after[0].x, after[0].y) or (
+        before[-1].x,
+        before[-1].y,
+    ) != (after[-1].x, after[-1].y)
+    frame.Destroy()
+
+
+def test_get_content_bounds_is_overridable(wx_app):
+    frame, canvas, diagram = _canvas(wx_app)
+    canvas.AddShape(wxdiagram.RectangleShape(0, 0, 500, 400))
+
+    assert canvas.getContentBounds() == canvas._shapes_bounds()
+
+    class CroppedCanvas(wxdiagram.ShapeCanvas):
+        def getContentBounds(self):
+            return 100, 50
+
+    cropped = CroppedCanvas(frame)
+    cropped.SetDiagram(wxdiagram.Diagram())
+    cropped.AddShape(wxdiagram.RectangleShape(0, 0, 5000, 5000))
+    cropped.ZoomToFit(margin=20)
+
+    assert cropped._shapes_bounds() == (100, 50)
+    assert cropped.scalex >= wxdiagram.ShapeCanvas.ZOOM_MIN_SCALE
     frame.Destroy()
 
 

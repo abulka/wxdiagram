@@ -10,15 +10,20 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ Spline/arrow/constraint accessors
 - ✅ README, migration guide, docs skeleton
 - ✅ Publish 0.1.0 (PyPI, 2026-11-16)
-- ⬜ Migrate pynsource and its CI
+- ✅ Publish 0.2.0 with the pynsource integration hooks
+- 🚧 Migrate pynsource and its CI
 
-## 0.2 — interaction
+## 0.2 — interaction and pynsource integration
 
 - 8-way resize handles, proportional resize, marquee selection
 - grid and alignment guides
 - undo/redo, z-order, duplicate
 - buffered/HiDPI-aware painting
 - mouse drag tolerance
+- ✅ `Shape.MoveTo` for top-left layout coordinates
+- ✅ overridable `getContentBounds()` for zoom-to-fit
+- ✅ `autoVirtualSize` / `zoomInputEnabled` opt-outs for apps that own scrolling
+- ✅ pynsource redirects its canvas to this library (in progress)
 
 ## 0.3 — edges
 

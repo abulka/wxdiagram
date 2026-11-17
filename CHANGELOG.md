@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.2.0 — 2026-11-17
+
+The pynsource integration release. Adds the small number of hooks the
+pynsource canvas needs, without pulling any application code into the library.
+
+### Added
+
+- `Shape.MoveTo(dc, x, y)` — move by top-left coordinates and refresh attached
+  lines. This replaces the `Move2` monkeypatch pynsource used to install.
+- `ShapeCanvas.getContentBounds()` — overridable content bounds used by
+  `ZoomToFit`. Applications can exclude edges or decoration from fit-to-window.
+- Tests for the pynsource-facing API, `MoveTo`, overridable content bounds, and
+  the `autoVirtualSize` / `zoomInputEnabled` opt-outs used by applications that
+  manage their own scrollbars.
+- Documented subclass pattern for handling Shift+wheel while delegating
+  Ctrl+wheel zoom to the library.
+
+### Changed
+
+- `ShapeCanvas._shapes_bounds()` now delegates to `getContentBounds()` and keeps
+  the cache in one place.
+- `Shape.Move` docstring clarifies that it takes the shape's centre; use
+  `MoveTo` for top-left layout coordinates.
+
 ## 0.1.0 — 2026-11-16
 
 First release under the **wxdiagram** name. The library was previously
