@@ -23,7 +23,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ `Shape.MoveTo` for top-left layout coordinates
 - ✅ overridable `getContentBounds()` for zoom-to-fit
 - ✅ `autoVirtualSize` / `zoomInputEnabled` opt-outs for apps that own scrolling
-- ✅ pynsource redirects its canvas to this library (in progress)
+- ✅ pynsource delegates its viewport (zoom, pinch, pan, virtual size) to this library
 
 ## 0.3 — edges
 

@@ -282,3 +282,30 @@ def test_subclass_can_handle_shift_wheel_and_delegate_the_rest(wx_app):
     ctrl_evt.SetControlDown(True)
     canvas.OnMouseWheel(ctrl_evt)
     assert canvas.scalex > scale
+
+
+def test_drag_empty_canvas_pans(wx_app):
+    """Dragging empty canvas pans (panOnDrag defaults on)."""
+    frame, canvas = _make_canvas(wx_app)
+    canvas.AddShape(wxdiagram.RectangleShape(0, 0, 200, 200))
+    canvas.SetScrollbars(1, 1, 4000, 4000, 500, 400)
+    wx.Yield()
+
+    def evt(wx_type, position, down=False):
+        e = wx.MouseEvent(wx_type)
+        e.SetPosition(wx.Point(*position))
+        e.SetX(position[0])
+        e.SetY(position[1])
+        e.SetEventObject(canvas)
+        if down:
+            e.SetLeftDown(True)
+        return e
+
+    before = canvas.GetViewStart()
+    canvas.OnLeftDown(evt(wx.wxEVT_LEFT_DOWN, (600, 500), down=True))
+    canvas.OnMotion(evt(wx.wxEVT_MOTION, (560, 470), down=True))
+    canvas.OnLeftUp(evt(wx.wxEVT_LEFT_UP, (560, 470)))
+    after = canvas.GetViewStart()
+
+    assert after != before
+    frame.Destroy()
