@@ -247,6 +247,45 @@ def _populate(canvas):
     arrowed.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
     shapes.extend([polyline, arrowed])
 
+    # A spline (bezier-like smooth curve) through three control points.
+    spline = wxdiagram.LineShape()
+    spline.MakeLineControlPoints(3)
+    spline._lineControlPoints[0] = wx.RealPoint(850, 700)
+    spline._lineControlPoints[1] = wx.RealPoint(965, 760)
+    spline._lineControlPoints[2] = wx.RealPoint(1080, 700)
+    spline.SetSpline(True)
+    spline.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
+    spline.AddText("spline")
+    spline.SetLabelPosition(0, 0, -16)
+    shapes.append(spline)
+
+    # One line showing the different arrow kinds and positions it can carry.
+    arrows = wxdiagram.LineShape()
+    arrows.MakeLineControlPoints(2)
+    arrows.SetEnds(850, 800, 1080, 800)
+    arrows.AddArrow(
+        wxdiagram.ARROW_DOUBLE_OBLIQUE, wxdiagram.ARROW_POSITION_START, size=12.0
+    )
+    arrows.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_MIDDLE, size=10.0)
+    arrows.AddArrow(
+        wxdiagram.ARROW_FILLED_CIRCLE, wxdiagram.ARROW_POSITION_END, size=10.0
+    )
+    arrows.AddText("arrow types")
+    arrows.SetLabelPosition(0, 0, -16)
+    shapes.append(arrows)
+
+    # A bent line: one control point per bend, editable with the resize nodes.
+    bent = wxdiagram.LineShape()
+    bent.MakeLineControlPoints(4)
+    bent._lineControlPoints[0] = wx.RealPoint(850, 900)
+    bent._lineControlPoints[1] = wx.RealPoint(930, 860)
+    bent._lineControlPoints[2] = wx.RealPoint(1000, 930)
+    bent._lineControlPoints[3] = wx.RealPoint(1080, 880)
+    bent.AddArrow(wxdiagram.ARROW_ARROW, wxdiagram.ARROW_POSITION_END, size=12.0)
+    bent.AddText("bend points")
+    bent.SetLabelPosition(0, 0, -16)
+    shapes.append(bent)
+
     # -- connections: attached lines, routed via the box perimeters ---------------
     uses = canvas.join_shapes(client, controller)
     if uses is not None:

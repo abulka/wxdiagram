@@ -110,8 +110,10 @@ pynsource canvas needs, without pulling any application code into the library.
   routed curves point along the edge.
 - Demo: removed the `utils.py` block that sat over the sample image, dropped
   the Repository box and shortened UserService, and added an EDGE STYLES section
-  with coloured boxes connected by straight, curved, avoid and orthogonal edges
-  (each labelled, the avoid pair with a blocker); the basic shapes are coloured.
+  with coloured boxes connected by straight, curved, auto, avoid and orthogonal
+  edges (each labelled; a blocker shows avoidance); the basic shapes are coloured.
+- Demo LINES & ARROWS now also shows a spline, a line carrying start/middle/end
+  arrow types, and a multi-point bend line.
 - `CompositeShape` is resizable (`Resizeable`): the eight handles scale its
   children proportionally with the frame, and constraints are re-evaluated.
 - `PolygonShape.HitTest` uses point-in-polygon, so the interior of a polygon is
