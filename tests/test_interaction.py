@@ -6,7 +6,7 @@ import pytest
 
 import wxdiagram
 from wxdiagram.composite import CompositeShape
-from wxdiagram.core import ConnectionHandleNode, INode, ONode, ResizeableNode
+from wxdiagram.core import ConnectionHandleNode, INode, InputHandleNode, ONode, ResizeableNode
 
 
 def _make_canvas(wx_app, size=(800, 600)):
@@ -444,6 +444,24 @@ def test_connection_started_from_a_top_dot_uses_that_dot(wx_app):
     assert conn.start_point == top
     conn.draw(wx.MemoryDC(wx.Bitmap(10, 10)))
     assert (conn.x[0], conn.y[0]) == top
+    frame.Destroy()
+
+
+def test_connection_targets_show_four_round_drop_dots(wx_app):
+    """Every connectable target advertises all four side dots, not just left."""
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    b = wxdiagram.Block()
+    b.x, b.y = [450, 550], [250, 350]
+    canvas.InsertShape(a, 0)
+    canvas.InsertShape(b, 0)
+
+    canvas.showInputs()
+
+    target_dots = [n for n in canvas.nodes if isinstance(n, InputHandleNode) and n.item is b]
+    assert {n.side for n in target_dots} == {"left", "right", "top", "bottom"}
+    assert len(target_dots) == 4
     frame.Destroy()
 
 

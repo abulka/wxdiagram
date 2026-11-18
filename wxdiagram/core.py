@@ -3560,12 +3560,24 @@ class ShapeCanvas(ScrolledWindow):
 
     def showInputs(self, item=None):
         if isinstance(item, Block):
-            self.nodes.extend([INode(item, n, self) for n in range(item.input)])
+            self._add_input_handles(item)
         else:
             for i in self.diagram.shapes:
                 if isinstance(i, Connectable):
-                    self.nodes.extend([INode(i, n, self) for n in range(i.input)])
+                    self._add_input_handles(i)
         self.verify_nodes_have_canvas()
+
+    def _add_input_handles(self, item):
+        """Show all four round drop dots for a connectable target shape."""
+        try:
+            points = item.connection_points()
+        except Exception:  # noqa: BLE001 - custom shapes may have no geometry
+            points = {}
+        if points:
+            self.nodes.extend(InputHandleNode(item, side, self) for side in points)
+        else:
+            # Legacy fallback for shapes without connection_points().
+            self.nodes.extend(INode(item, n, self) for n in range(item.input))
 
     def _show_hover_ports(self, shape):
         """Show round connection dots for one connectable shape (or clear)."""
@@ -4555,6 +4567,40 @@ class INode(ConnectableNode):
         x, y = self._node_xy("input", self.index)
         self.moveto(x, y)
         _draw_port_dot(dc, self.cf, x, y, self.size)
+
+
+class InputHandleNode(INode):
+    """A round drop dot on any side of a target shape.
+
+    The legacy input node only sat on the left edge.  During a connection drag
+    the target should advertise the same four side dots as the source shape.
+    """
+
+    RADIUS = 4
+    HIT_RADIUS = 12
+
+    def __init__(self, item, side, cf):
+        INode.__init__(self, item, 0, cf)
+        self.side = side
+        self.size = self.RADIUS
+        try:
+            points = item.connection_points()
+        except Exception:  # noqa: BLE001 - custom shape without geometry
+            points = {}
+        self._port_point = points.get(side, item.getCentre())
+        self.moveto(*self._port_point)
+
+    def _node_xy(self, type, num):
+        return self._port_point
+
+    def draw(self, dc):
+        x, y = self._port_point
+        self.moveto(x, y)
+        _draw_port_dot(dc, self.cf, x, y, self.RADIUS)
+
+    def HitTest(self, x, y):
+        px, py = self._port_point
+        return abs(x - px) <= self.HIT_RADIUS and abs(y - py) <= self.HIT_RADIUS
 
 
 class ONode(ConnectableNode):

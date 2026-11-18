@@ -2,6 +2,10 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
+## 0.2.5 — 2026-11-18
+
+- Connection drags show all four round drop dots on target shapes.
+
 ## 0.2.4 — 2026-11-18
 
 - Deleting shapes clears their selection handles; `DeleteAllShapes()` and

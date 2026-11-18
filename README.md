@@ -169,7 +169,7 @@ comparison with `wx.lib.ogl`.
 
 ## Status
 
-Beta (`0.2.4`). The public API is still settling, so pin a version if you
+Beta (`0.2.5`). The public API is still settling, so pin a version if you
 depend on it. pynsource is the main downstream consumer.
 
 ## License

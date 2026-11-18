@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.5 — 2026-11-18
+
+### Fixed
+
+- While dragging a connection, every connectable target now shows all four
+  round side drop dots instead of only the legacy left-hand input port.  The
+  legacy `INode` drop path (Shift/Alt edge types) still works.
+
 ## 0.2.4 — 2026-11-18
 
 ### Fixed
