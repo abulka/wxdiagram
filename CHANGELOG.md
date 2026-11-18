@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.3 — 2026-11-18
+
+Interaction bug fixes found while exercising pynsource's sample diagram.
+
+### Fixed
+
+- Dragging a multi-selection that includes an attached edge no longer moves the
+  edge directly as well as re-clipping it from its endpoint shapes.  The edge
+  used to overshoot by the drag delta, stretching off-screen and expanding the
+  virtual canvas; it now follows its shapes exactly.
+- Dragging an attached edge on its own no longer detaches or shifts it.  Free
+  (unattached) lines still move normally.
+- `ShapeCanvas.SetDiagram()` clears the previous diagram's selection and
+  selection handles, so stale resize/connection chrome is no longer painted on
+  the new diagram until the next click.
+
 ## 0.2.2 — 2026-11-18
 
 Shape-editor primitives plus a second demo proving them.

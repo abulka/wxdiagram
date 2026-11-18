@@ -2,6 +2,12 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
+## 0.2.3 — 2026-11-18
+
+- Group drags no longer move attached edges twice; edges follow their shapes.
+- Dragging an attached edge alone no longer detaches it.
+- `SetDiagram()` clears the old diagram's selection and handles.
+
 ## 0.2.2 — 2026-11-18
 
 - Destination connection ports are round, matching the source dots.

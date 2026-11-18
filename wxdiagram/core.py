@@ -67,6 +67,17 @@ DEBUG_INODE_CONNECT = False
 _shape_id_counter = itertools.count(1)
 
 
+def _is_attached_edge(shape):
+    """True for a line whose endpoints are driven by attached shapes.
+
+    Attached edges must not be translated directly in a group drag: moving the
+    endpoint shapes already re-clips the edge via ``MoveLinks``.  Moving the
+    edge as well shifts the line a second time (and detaches it until the next
+    re-clip).
+    """
+    return getattr(shape, "_from", None) is not None or getattr(shape, "_to", None) is not None
+
+
 class Diagram:
     def __init__(self):
         self.shapes = []
@@ -2844,7 +2855,11 @@ class ShapeCanvas(ScrolledWindow):
         if not modifier and not already_selected:
             self.deselect()
         self.select(shape)  # will auto create various Nodes attached to points on the shape
-        move_shapes = [s for s in self.getSelectedShapes() if not isinstance(s, Node)]
+        move_shapes = [
+            s
+            for s in self.getSelectedShapes()
+            if not isinstance(s, Node) and not _is_attached_edge(s)
+        ]
         self._drag_start_hull = self._hull(move_shapes) if move_shapes else None
 
         self.Refresh()
@@ -3019,18 +3034,26 @@ class ShapeCanvas(ScrolledWindow):
         y = point[1] - self.currentPoint[1]
         self._dump_canvas_info("OnMotion", point, x, y)
 
-        move_shapes = [s for s in self.getSelectedShapes() if not isinstance(s, Node)]
-        if move_shapes and self._drag_start_hull is not None:
+        selected = self.getSelectedShapes()
+        group_shapes = [s for s in selected if not isinstance(s, Node) and not _is_attached_edge(s)]
+        if group_shapes and self._drag_start_hull is not None:
             # Snap from the total offset since mouse-down, not the per-event
             # delta, so guides do not glue the shape in place.
             total_x = point[0] - self._drag_origin_diagram[0]
             total_y = point[1] - self._drag_origin_diagram[1]
-            total_x, total_y = self._snap_drag(move_shapes, self._drag_start_hull, total_x, total_y)
-            current_hull = self._hull(move_shapes)
+            total_x, total_y = self._snap_drag(
+                group_shapes, self._drag_start_hull, total_x, total_y
+            )
+            current_hull = self._hull(group_shapes)
             x = self._drag_start_hull[0] + total_x - current_hull[0]
             y = self._drag_start_hull[1] + total_y - current_hull[1]
 
-        for shape in self.getSelectedShapes():
+        # Nodes are resize/connection handles and must still receive move().
+        # Attached edges are deliberately excluded: their endpoint shapes
+        # re-clip them through MoveLinks(), so translating the edge as well
+        # would overshoot it by the drag delta.
+        move_targets = [s for s in selected if isinstance(s, Node) or not _is_attached_edge(s)]
+        for shape in move_targets:
             shape.SetCanvas(self)  # safe-guard repair - ensure the shape knows its canvas
             self._dump_shape_info("OnMotion", [shape])
 
@@ -3076,6 +3099,14 @@ class ShapeCanvas(ScrolledWindow):
         return self.diagram
 
     def SetDiagram(self, diagram):
+        # The old diagram's selection handles live on this canvas, not on the
+        # shapes.  Clear them here or they stay painted until the next click.
+        self.deselect()
+        self._drag_start_hull = None
+        self._dragging_resize_node = None
+        self._drag_started = False
+        self._marquee_active = False
+        self._marquee_base = []
         self.diagram = diagram
         if diagram is not None and getattr(diagram, "SetCanvas", None) is not None:
             diagram.SetCanvas(self)
@@ -3086,6 +3117,7 @@ class ShapeCanvas(ScrolledWindow):
         # A new diagram can have a different content origin (negative
         # coordinates); do not navigate last diagram's rectangle.
         self.invalidate_bounds_cache()
+        self.Refresh()
 
     def getCurrentShape(self, event):
         # get coordinate of click in our coordinate system

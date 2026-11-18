@@ -46,9 +46,7 @@ def _marquee(canvas, start, end, shift=False, control=False):
     canvas.OnLeftDown(
         _event(canvas, wx.wxEVT_LEFT_DOWN, start, down=True, shift=shift, control=control)
     )
-    canvas.OnMotion(
-        _event(canvas, wx.wxEVT_MOTION, end, down=True, shift=shift, control=control)
-    )
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, end, down=True, shift=shift, control=control))
     canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, end, shift=shift, control=control))
 
 
@@ -221,6 +219,77 @@ def test_dragging_one_of_multiple_selected_moves_all(wx_app):
     assert (first.x[0] - start_first[0], first.y[0] - start_first[1]) == (20, 10)
     assert (second.x[0] - start_second[0], second.y[0] - start_second[1]) == (20, 10)
     assert set(canvas.getSelectedShapes()) == {first, second}
+    frame.Destroy()
+
+
+def test_group_drag_does_not_move_an_attached_edge_twice(wx_app):
+    """An attached edge follows its shapes; moving it too overshoots by delta."""
+    frame, canvas = _make_canvas(wx_app)
+    first = _add_rect(canvas, 100, 100, 250, 200)
+    second = _add_rect(canvas, 450, 100, 600, 200)
+    canvas.SetScrollbars(1, 1, 2000, 2000, 0, 0)
+    wx.Yield()
+    line = canvas.join_shapes(first, second)
+    line.SetRouteMode("straight")
+
+    # pynsource appends edges after the boxes, so the edge is moved after the
+    # shapes in the selection loop.  That is the order that exposed the bug.
+    canvas.diagram.ChangeShapeOrder(line, len(canvas.diagram.shapes) - 1)
+    canvas.select(first)
+    canvas.select(second)
+    canvas.select(line)
+    assert canvas.getSelectedShapes()[-1] is line
+
+    centre = (first.GetX(), first.GetY())
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, centre, down=True))
+    canvas.OnMotion(_event(canvas, wx.wxEVT_MOTION, (centre[0] + 40, centre[1] + 20), down=True))
+    assert (first.x[0], first.y[0]) == (140, 120)
+    assert (second.x[0], second.y[0]) == (490, 120)
+    assert tuple(line.GetEnds()) == tuple(line.FindLineEndPoints())
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, (centre[0] + 40, centre[1] + 20)))
+    frame.Destroy()
+
+
+def test_dragging_an_attached_edge_alone_does_not_stretch_it(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    first = _add_rect(canvas, 100, 100, 250, 200)
+    second = _add_rect(canvas, 450, 100, 600, 200)
+    canvas.SetScrollbars(1, 1, 2000, 2000, 0, 0)
+    wx.Yield()
+    line = canvas.join_shapes(first, second)
+    line.SetRouteMode("straight")
+    before_ends = tuple(line.GetEnds())
+    before_shapes = [(first.x[0], first.y[0]), (second.x[0], second.y[0])]
+
+    canvas.select(line)
+    midpoint = (350, 150)
+    canvas.OnLeftDown(_event(canvas, wx.wxEVT_LEFT_DOWN, midpoint, down=True))
+    canvas.OnMotion(
+        _event(canvas, wx.wxEVT_MOTION, (midpoint[0] + 80, midpoint[1] + 40), down=True)
+    )
+    canvas.OnLeftUp(_event(canvas, wx.wxEVT_LEFT_UP, (midpoint[0] + 80, midpoint[1] + 40)))
+
+    assert tuple(line.GetEnds()) == before_ends
+    assert [(first.x[0], first.y[0]), (second.x[0], second.y[0])] == before_shapes
+    frame.Destroy()
+
+
+def test_set_diagram_clears_old_selection_chrome(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.Block()
+    shape.x = [100, 200]
+    shape.y = [100, 200]
+    canvas.AddShape(shape)
+    canvas.select(shape)
+    assert canvas.getSelectedShapes() == [shape]
+    assert canvas.nodes, "selection handles were not created"
+
+    canvas.SetDiagram(wxdiagram.Diagram())
+
+    assert canvas.getSelectedShapes() == []
+    assert canvas.nodes == []
+    assert canvas._hover_shape is None
+    assert not shape.Selected()
     frame.Destroy()
 
 
