@@ -6,7 +6,7 @@ import pytest
 
 import wxdiagram
 from wxdiagram.composite import CompositeShape
-from wxdiagram.core import ConnectionHandleNode, ONode, ResizeableNode
+from wxdiagram.core import ConnectionHandleNode, INode, ONode, ResizeableNode
 
 
 def _make_canvas(wx_app, size=(800, 600)):
@@ -448,7 +448,7 @@ def test_connection_started_from_a_top_dot_uses_that_dot(wx_app):
 
 
 def test_legacy_inode_drop_preserves_edge_type(wx_app):
-    """Pynsource still uses square INode drop ports to choose Shift/Alt edges."""
+    """Pynsource still uses INode drop ports to choose Shift/Alt edges."""
     frame, canvas = _make_canvas(wx_app)
     a = wxdiagram.Block()
     a.x, a.y = [50, 150], [50, 150]
@@ -489,6 +489,22 @@ def test_legacy_inode_drop_preserves_edge_type(wx_app):
 
     assert calls == ["generalisation"]
     assert not any(isinstance(s, wxdiagram.ConnectionShape) for s in canvas.diagram.shapes)
+    frame.Destroy()
+
+
+def test_legacy_drop_ports_are_round_like_selection_dots(wx_app):
+    """Source dots and destination drop ports should share one round style."""
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    canvas.InsertShape(a, 0)
+
+    dc = _mock_dc()
+    for node in (INode(a, 0, canvas), ONode(a, 0, canvas)):
+        node.draw(dc)
+        circles = [call for call in dc.calls if call[0] == "DrawCircle"]
+        assert circles, f"{type(node).__name__} did not draw a round port"
+        assert circles[-1][1][2] == ConnectionHandleNode.RADIUS
     frame.Destroy()
 
 

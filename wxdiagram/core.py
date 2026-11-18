@@ -1561,7 +1561,7 @@ class ShapeCanvas(ScrolledWindow):
         #: when set, join_shapes() uses this colour and width for new edges
         self.edgePenColour = None
         self.edgePenWidth = 2
-        #: show the legacy square drop ports while dragging a connection
+        #: show the legacy drop ports while dragging a connection
         self.showDropPorts = True
         #: canvas-wide edge router override (instance or name); None = built-in
         self._default_router = None
@@ -2889,7 +2889,7 @@ class ShapeCanvas(ScrolledWindow):
                 and selected[0].output is None
                 # Preserve the legacy INode drop path (and its Shift/Alt edge
                 # type) for applications such as pynsource that still use the
-                # square input ports.
+                # edge input ports.
                 and not isinstance(shape, INode)
             ):
                 connection = selected[0]
@@ -3649,8 +3649,8 @@ class ShapeCanvas(ScrolledWindow):
         connection = self._connection_in_progress()
         if connection is not None:
             if getattr(self, "showDropPorts", True):
-                # Legacy mode: ONode.move() has already created square INode
-                # drop ports (pynsource uses these to choose edge types).
+                # Legacy mode: ONode.move() has already created INode drop
+                # ports (pynsource uses these to choose edge types).
                 # Do not stack hover dots on top of them.
                 target = None
             else:
@@ -4411,6 +4411,16 @@ class Node(PointShape):
         self.item.showProperties
 
 
+def _draw_port_dot(dc, cf, x, y, radius):
+    """Draw one round connection dot using the canvas port colours."""
+    fill = getattr(cf, "portFillColour", wx.Colour(255, 255, 255))
+    outline = getattr(cf, "portOutlineColour", wx.Colour(70, 70, 70))
+    dc.SetPen(wx.Pen(outline, 1))
+    dc.SetBrush(wx.Brush(fill))
+    dc.DrawCircle(int(x), int(y), radius)
+    dc.SetBrush(wx.TRANSPARENT_BRUSH)
+
+
 class ConnectableNode(Node):
     def __init__(self, item, index, cf):
         Node.__init__(self, item, index, cf)
@@ -4495,12 +4505,12 @@ class INode(ConnectableNode):
         self.cf.select(ci)
 
     def draw(self, dc):
-        """Draws a white square input connector node on the left edge of a shape"""
+        """Draw a round input drop port at the input side of the shape."""
         # Each node instance has a property index (portnum) baked into it, as well as the item (shape)
         # Draw yourself on the shape at coords of the portnum on the input side (cos this is an INode)
         x, y = self._node_xy("input", self.index)
         self.moveto(x, y)
-        PointShape.draw(self, dc)
+        _draw_port_dot(dc, self.cf, x, y, self.size)
 
 
 class ONode(ConnectableNode):
@@ -4539,15 +4549,16 @@ class ONode(ConnectableNode):
                 self.recreate_line_properly(connection_shape)
 
     def draw(self, dc):
+        """Draw a round output drop port at the output side of the shape."""
         x, y = self._node_xy("output", self.index)
         self.moveto(x, y)
-        PointShape.draw(self, dc)
+        _draw_port_dot(dc, self.cf, x, y, self.size)
 
 
 class ConnectionHandleNode(ONode):
     """A round side dot that starts an attached edge.
 
-    Unlike the legacy square ports, these live on the shape's perimeter and
+    Unlike the legacy edge ports, these live on the shape's perimeter and
     are shown persistently for a selected connectable shape.  The position is
     recomputed from the shape each time, so the dots follow moves and resizes.
     """
@@ -4571,12 +4582,7 @@ class ConnectionHandleNode(ONode):
     def draw(self, dc):
         x, y = self._port_position()
         self.moveto(x, y)
-        fill = getattr(self.cf, "portFillColour", wx.Colour(255, 255, 255))
-        outline = getattr(self.cf, "portOutlineColour", wx.Colour(70, 70, 70))
-        dc.SetPen(wx.Pen(outline, 1))
-        dc.SetBrush(wx.Brush(fill))
-        dc.DrawCircle(int(x), int(y), self.RADIUS)
-        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        _draw_port_dot(dc, self.cf, x, y, self.RADIUS)
 
     def HitTest(self, x, y):
         px, py = self._port_position()

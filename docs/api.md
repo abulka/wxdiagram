@@ -88,7 +88,7 @@ Canvas settings you are likely to tune (class or instance attributes):
 | `gridColour` / `guideColour` | light grey / magenta | grid and alignment guide pens |
 | `connectionPenColour` | blue-grey | temporary line while dragging a connection |
 | `edgePenColour` / `edgePenWidth` | `None` / `2` | default pen for edges created by `join_shapes` |
-| `showDropPorts` | `True` | draw legacy square drop ports while connecting |
+| `showDropPorts` | `True` | draw legacy drop ports while connecting |
 | `WHEEL_SCROLL_PIXELS` | `20` | wheel pixels per notch (Windows/Linux) |
 | `WHEEL_SCROLL_PIXELS_MACOS` | `1.0` | multiplier on wxOSX's precise deltas |
 | `PAN_START_THRESHOLD` | `3` | pixels before a drag becomes a pan |
@@ -118,7 +118,7 @@ Connection UX: connectable shapes show four corner resize handles and four
 round side dots.  `Connectable.connection_points()` returns the dots clipped to
 the real perimeter (triangles use their sloping edges).  Drag a dot and release
 over another connectable shape body to create an attached edge; `showDropPorts`
-enables the legacy square drop ports.
+enables the legacy drop ports (drawn in the same round style).
 
 ### RectangleShape
 

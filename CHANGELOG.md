@@ -19,7 +19,7 @@ Shape-editor primitives plus a second demo proving them.
   their sloping edges) and stay visible for the selected shape.  Dragging a dot
   and releasing anywhere over another connectable shape body creates an
   attached edge; `Connectable.connection_points()` exposes the dots and
-  `showDropPorts` keeps the legacy square drop ports available.
+  `showDropPorts` keeps the legacy drop ports available.
 - `AddLine` / `RemoveLine` moved from `RectangleShape` to `Shape`, so ellipses,
   polygons and groups can be the source of an attached edge (fixes
   `AttributeError: ... has no attribute 'AddLine'` when connecting from an
