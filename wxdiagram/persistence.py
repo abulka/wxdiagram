@@ -247,6 +247,20 @@ def shape_to_dict(shape, id_map: Dict[int, int]) -> Dict[str, Any]:
     if hasattr(shape, "_lineControlPoints"):
         data["controlPoints"] = [[p[0], p[1]] for p in shape._lineControlPoints]
         data["isSpline"] = getattr(shape, "_isSpline", False)
+        get_mode = getattr(shape, "GetRouteMode", None)
+        if callable(get_mode):
+            try:
+                data["routeMode"] = get_mode()
+            except Exception:
+                pass
+        get_router_name = getattr(shape, "GetRouterName", None)
+        if callable(get_router_name):
+            try:
+                router_name = get_router_name()
+            except Exception:
+                router_name = None
+            if router_name:
+                data["router"] = router_name
         data["arrows"] = [
             {
                 "type": a._GetType(),
@@ -339,6 +353,26 @@ def dict_to_shape(data, id_to_shape: Dict[int, Any]) -> Any:
             # AddArrow creates a fresh ArrowHead; set spacing afterwards
             if shape._arcArrows and a.get("spacing") is not None:
                 shape._arcArrows[-1].SetSpacing(a["spacing"])
+
+        # Restore routing mode/router without triggering a route: the shape
+        # may not be attached to a canvas/diagram yet.  Routing resumes on
+        # the next move or explicit RouteEdges() call.
+        route_mode = data.get("routeMode")
+        if route_mode is not None and hasattr(shape, "autoRoute"):
+            mapping = {
+                "straight": False,
+                "auto": "auto",
+                "avoid": "avoid",
+                "curved": "curved",
+                "orthogonal": "orthogonal",
+            }
+            if route_mode in mapping:
+                shape.autoRoute = mapping[route_mode]
+        router_name = data.get("router")
+        if router_name is not None and hasattr(shape, "_router"):
+            # Stored as a name; resolved lazily so files load even when a
+            # custom router is not registered in this session.
+            shape._router = router_name
 
     id_to_shape[data["id"]] = shape
 

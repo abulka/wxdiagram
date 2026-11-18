@@ -205,6 +205,57 @@ class Diagram:
     def GetShapeList(self):
         return self.shapes
 
+    def ApplyLayout(self, engine="spring", options=None, on_step=None):
+        """Run a layout engine and move top-level shapes to its positions.
+
+        ``engine`` is a registered layout name or an engine instance with a
+        ``layout(nodes, edges, ...)`` method (see :mod:`wxdiagram.layout`).
+        Positions are top-left coordinates applied with ``move_to``; attached
+        lines then have their endpoints re-clipped.  Full obstacle routing
+        happens in :meth:`ShapeCanvas.ApplyLayout`, which has canvas context.
+        Returns the :class:`LayoutResult`.
+        """
+        from . import layout as layout_module
+
+        resolved = layout_module.get_layout(engine)
+        nodes, id_by_shape = layout_module.nodes_from_diagram(self)
+        edges = layout_module.edges_from_diagram(self, id_by_shape)
+        result = resolved.layout(nodes, edges, options=options, on_step=on_step)
+        shape_by_node = {}
+        for shape in list(self.shapes):
+            node_id = id_by_shape.get(id(shape))
+            if node_id is not None:
+                shape_by_node[node_id] = shape
+        for node_id, (x, y) in result.positions.items():
+            shape = shape_by_node.get(node_id)
+            if shape is None:
+                continue
+            try:
+                shape.move_to(float(x), float(y))
+            except Exception:
+                continue
+            reset = getattr(shape, "ResetControlPoints", None)
+            if callable(reset):
+                try:
+                    reset()
+                except Exception:
+                    pass
+        # Re-clip attached lines so they stay connected headless (no canvas).
+        for shape in list(self.shapes):
+            if getattr(shape, "_from", None) is None or getattr(shape, "_to", None) is None:
+                continue
+            try:
+                ends = shape.FindLineEndPoints()
+            except Exception:
+                continue
+            if ends:
+                try:
+                    shape.SetEnds(*ends)
+                    shape._sync_xy_from_control_points()
+                except Exception:
+                    pass
+        return result
+
 
 # Generic Shape Event Handler -------------------------------------------------------------------------------
 class ShapeEvtHandler:
@@ -557,6 +608,14 @@ class Shape(ShapeEvtHandler):
         self._id = next(_shape_id_counter)
         for child in getattr(self, "_compositeChildren", []) or []:
             child.AssignNewIds()
+
+    def SetLayoutFixed(self, fixed):
+        """Exclude this shape from layout engines that honour the fixed flag."""
+        self._layout_fixed = bool(fixed)
+
+    def IsLayoutFixed(self):
+        """Return whether layout engines should leave this shape in place."""
+        return bool(getattr(self, "_layout_fixed", False))
 
     # ANDY EXTRAS
 
@@ -1504,6 +1563,8 @@ class ShapeCanvas(ScrolledWindow):
         self.edgePenWidth = 2
         #: show the legacy square drop ports while dragging a connection
         self.showDropPorts = True
+        #: canvas-wide edge router override (instance or name); None = built-in
+        self._default_router = None
         ####
 
     def _bounds_changed(self):
@@ -1794,6 +1855,143 @@ class ShapeCanvas(ScrolledWindow):
         self.InsertShape(line, 0)
         fromShape.AddLine(line, toShape)
         return line
+
+    # --- injectable edge routing -------------------------------------------
+
+    def SetDefaultRouter(self, router):
+        """Set the canvas-wide edge router (experimental API)."""
+        if router is None:
+            self._default_router = None
+            return
+        from . import routing as routing_module
+
+        if isinstance(router, str):
+            routing_module.get_router(router)  # validate early
+            self._default_router = router
+        else:
+            self._default_router = router
+
+    def GetDefaultRouter(self):
+        """Return the canvas default router (experimental API)."""
+        return getattr(self, "_default_router", None)
+
+    def RouteEdges(self, router=None):
+        """Re-route every attached edge; return ``{edge_id: style}``.
+
+        Uses the experimental router-injection layer.  When ``router`` is
+        given it overrides every edge for this call; otherwise each edge uses
+        its own router (or the canvas default).
+        """
+        from . import routing as routing_module
+
+        if self.diagram is None:
+            return {}
+        lines = [
+            shape
+            for shape in self.diagram.shapes
+            if getattr(shape, "_from", None) is not None
+            and getattr(shape, "_to", None) is not None
+            and hasattr(shape, "_build_route_request")
+        ]
+        # Group by effective router so route_many() sees the whole batch.
+        groups: dict = {}
+        for line in lines:
+            try:
+                override = (
+                    router if router is not None else line.GetRouter() or line.GetEffectiveRouter()
+                )
+            except KeyError:
+                override = None
+            try:
+                resolved = routing_module.get_router(override)
+            except KeyError:
+                resolved = routing_module.DEFAULT_ROUTER
+            groups.setdefault(id(resolved), (resolved, []))[1].append(line)
+        styles = {}
+        for _, (resolved, group) in groups.items():
+            batch = []
+            for line in group:
+                try:
+                    request = line._build_route_request()
+                except Exception:
+                    request = None
+                if request is None:
+                    refresh = getattr(line, "RefreshEnds", None)
+                    if callable(refresh):
+                        try:
+                            refresh()
+                        except Exception:
+                            pass
+                    styles[line.GetId() or id(line)] = None
+                    continue
+                batch.append((line, request))
+            if not batch:
+                continue
+            route_many = getattr(resolved, "route_many", None)
+            if callable(route_many):
+                try:
+                    results = route_many([request for _, request in batch])
+                except Exception:
+                    results = None
+                if not isinstance(results, dict):
+                    results = {}
+                    for line, request in batch:
+                        try:
+                            results[request.edge_id] = resolved.route(request)
+                        except Exception:
+                            results[request.edge_id] = None
+                for line, request in batch:
+                    result = results.get(request.edge_id)
+                    key = line.GetId() or id(line)
+                    if result is None:
+                        styles[key] = None
+                        continue
+                    try:
+                        styles[key] = line._apply_route_result(result)
+                    except Exception:
+                        styles[key] = None
+            else:
+                for line, request in batch:
+                    key = line.GetId() or id(line)
+                    try:
+                        result = resolved.route(request)
+                    except Exception:
+                        result = None
+                    if result is None:
+                        styles[key] = None
+                        continue
+                    try:
+                        styles[key] = line._apply_route_result(result)
+                    except Exception:
+                        styles[key] = None
+        return styles
+
+    def ApplyLayout(self, engine="spring", options=None, on_step=None, refresh=True):
+        """Run a layout engine, re-route edges and refresh the view.
+
+        Thin wrapper over :meth:`Diagram.ApplyLayout`: positions come from
+        the engine, then every edge is re-routed with its effective router.
+        Returns the :class:`LayoutResult`.
+        """
+        if self.diagram is None:
+            from .layout import LayoutResult as _LayoutResult
+
+            return _LayoutResult(positions={})
+        result = self.diagram.ApplyLayout(engine=engine, options=options, on_step=on_step)
+        try:
+            self.RouteEdges()
+        except Exception:
+            pass
+        try:
+            self.update_virtual_size()
+        except Exception:
+            pass
+        if refresh:
+            try:
+                self.Refresh()
+            except Exception:
+                pass
+        return result
 
     def Redraw(self, dc):
         """

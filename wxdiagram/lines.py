@@ -102,6 +102,9 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         self._lineOrientations = []
         self._lineControlPoints = []
         self._arcArrows = []
+        #: custom edge router (instance or registered name); None uses the
+        #: canvas default, ultimately :data:`routing.DEFAULT_ROUTER`.
+        self._router = None
         #: on-screen label rectangles, filled in by DrawLabels for hit-testing
         self._labelRects = {}
 
@@ -944,6 +947,31 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         from a straight line first, so a previous curve cannot feed back into
         the next route.
         """
+        request = self._build_route_request()
+        if request is None:
+            return None
+        try:
+            router = self.GetEffectiveRouter()
+        except KeyError:
+            router = routing.DEFAULT_ROUTER
+        try:
+            result = router.route(request)
+        except Exception:
+            # A custom router must never break the canvas: fall back to the
+            # built-in router so the edge stays attached and visible.
+            result = routing.DEFAULT_ROUTER.route(request)
+        if result is None:
+            return None
+        style = self._apply_route_result(result)
+        return style if style is not None else None
+
+    def _build_route_request(self):
+        """Collapse to a straight line and describe the routing job.
+
+        Returns a :class:`routing.RouteRequest`, or None when routing does
+        not apply.  As a side effect the line is collapsed to two points and
+        its endpoints are re-clipped, so routers always see clean geometry.
+        """
         if (
             not self.autoRoute
             or self._from is None
@@ -965,36 +993,107 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             return None
         self.SetEnds(*ends)
 
+        start = (self._lineControlPoints[0][0], self._lineControlPoints[0][1])
+        end = (self._lineControlPoints[-1][0], self._lineControlPoints[-1][1])
+        lane_index, lane_count = self._lane_info()
+        spacing = 14.0
+        spread = (lane_index - (lane_count - 1) / 2.0) * spacing if lane_count > 1 else 0.0
+        mode = self.GetRouteMode()
+        if self.autoRoute is True:
+            mode = "avoid"
+        return routing.RouteRequest(
+            edge_id=self.GetId() or id(self),
+            start=(float(start[0]), float(start[1])),
+            end=(float(end[0]), float(end[1])),
+            start_normal=self._endpoint_normal(start, self._from),
+            end_normal=self._endpoint_normal(end, self._to),
+            obstacles=tuple(self._obstacles()),
+            mode=mode,
+            spread=spread,
+            lane_index=lane_index,
+            lane_count=lane_count,
+        )
+
+    def _apply_route_result(self, result):
+        """Write a router result into control points and the spline flag."""
+        points = [(float(p[0]), float(p[1])) for p in result.points]
+        if len(points) < 2:
+            return None
+        if len(points) != len(self._lineControlPoints):
+            self.MakeLineControlPoints(len(points))
+        for control, point in zip(self._lineControlPoints, points):
+            control[0] = point[0]
+            control[1] = point[1]
+        if isinstance(result, routing.RouteResult):
+            self.SetSpline(result.resolved_spline())
+        else:  # duck-typed custom result
+            spline = getattr(result, "spline", None)
+            style = getattr(result, "style", "straight")
+            self.SetSpline(bool(spline) if spline is not None else style == "curved")
+        self._sync_xy_from_control_points()
+        return getattr(result, "style", "straight")
+
+    def _obstacles(self):
+        """Foreign rectangles the router must avoid."""
+        canvas = self.GetCanvas()
+        diagram = getattr(canvas, "diagram", None) if canvas is not None else None
+        if diagram is None:
+            return []
         obstacles = []
         for shape in diagram.shapes:
             if shape is self or shape is self._from or shape is self._to:
                 continue
             if isinstance(shape, RectangleShape) and len(shape.x) == 2 and len(shape.y) == 2:
                 obstacles.append((shape.x[0], shape.y[0], shape.x[1], shape.y[1]))
+        return obstacles
 
-        start = (self._lineControlPoints[0][0], self._lineControlPoints[0][1])
-        end = (self._lineControlPoints[-1][0], self._lineControlPoints[-1][1])
-        points, style = routing.route_edge(
-            start,
-            end,
-            obstacles,
-            spread=self._lane_offset(),
-            prefer_curve=self.autoRoute == "curved",
-            prefer_orthogonal=self.autoRoute == "orthogonal",
-            allow_orthogonal=(
-                self.autoRoute == "avoid" or self.autoRoute is True
-            ),
-            start_normal=self._endpoint_normal(start, self._from),
-            end_normal=self._endpoint_normal(end, self._to),
-        )
-        if len(points) != len(self._lineControlPoints):
-            self.MakeLineControlPoints(len(points))
-        for control, point in zip(self._lineControlPoints, points):
-            control[0] = point[0]
-            control[1] = point[1]
-        self.SetSpline(style == "curved")
-        self._sync_xy_from_control_points()
-        return style
+    # --- injectable routers -------------------------------------------------
+
+    def SetRouter(self, router):
+        """Set a custom edge router (experimental API).
+
+        ``None`` clears the override so the canvas default applies.  Setting
+        a router enables routing when ``autoRoute`` is off.
+        """
+        if router is None:
+            self._router = None
+            return
+        if isinstance(router, str):
+            # Validate early so typos fail fast instead of at paint time.
+            routing.get_router(router)
+            self._router = router
+        else:
+            self._router = router
+        if not self.autoRoute:
+            self.autoRoute = "auto"
+
+    def GetRouter(self):
+        """Return the edge's own router override (experimental API)."""
+        return self._router
+
+    def GetRouterName(self):
+        """Registered name of this edge's router, or None (experimental API)."""
+        router = self._router
+        if router is None:
+            return None
+        if isinstance(router, str):
+            return router
+        return getattr(router, "name", None)
+
+    def GetEffectiveRouter(self):
+        """Resolve the router: edge override, canvas default, built-in.
+
+        Part of the experimental router-injection API.
+        """
+        if self._router is not None:
+            return routing.get_router(self._router)
+        canvas = self.GetCanvas()
+        get_default = getattr(canvas, "GetDefaultRouter", None)
+        if callable(get_default):
+            router = get_default()
+            if router is not None:
+                return routing.get_router(router)
+        return routing.DEFAULT_ROUTER
 
     def SetRouteMode(self, mode):
         """Set how the edge is drawn: ``"straight"``, ``"avoid"`` or ``"curved"``.
@@ -1030,6 +1129,19 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             return "avoid"
         return "auto" if self.autoRoute else "straight"
 
+    def RefreshEnds(self):
+        """Re-clip both endpoints to their shapes without routing.
+
+        Useful after a batch move or layout for straight/manual edges, whose
+        routing mode does not run the obstacle router.
+        """
+        if self._from is None or self._to is None or not self._lineControlPoints:
+            return
+        ends = self.FindLineEndPoints()
+        if ends:
+            self.SetEnds(*ends)
+            self._sync_xy_from_control_points()
+
     def ResetRoute(self):
         """Collapse the edge to a straight, attached two-point line."""
         if not self._lineControlPoints:
@@ -1060,12 +1172,12 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
         )
         return min(distances, key=lambda item: item[0])[1]
 
-    def _lane_offset(self, spacing=14.0):
-        """Sideways offset for parallel edges between the same two shapes."""
+    def _lane_info(self, spacing=14.0):
+        """``(index, count)`` of this edge among parallel edges."""
         canvas = self.GetCanvas()
         diagram = getattr(canvas, "diagram", None) if canvas is not None else None
         if diagram is None or self._from is None or self._to is None:
-            return 0.0
+            return 0, 1
         peers = [
             shape
             for shape in diagram.shapes
@@ -1079,8 +1191,14 @@ class LineShape(LineShapeBase, Selectable, Resizeable):
             )
         ]
         group = sorted(peers + [self], key=lambda line: (line.GetId(), id(line)))
-        index = group.index(self)
-        return (index - (len(group) - 1) / 2.0) * spacing
+        return group.index(self), len(group)
+
+    def _lane_offset(self, spacing=14.0):
+        """Sideways offset for parallel edges between the same two shapes."""
+        index, count = self._lane_info(spacing=spacing)
+        if count <= 1:
+            return 0.0
+        return (index - (count - 1) / 2.0) * spacing
 
     def FindLineEndPoints(self):
         """

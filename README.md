@@ -50,6 +50,10 @@ OGLlike attribution.
   points, lines, resizable bitmaps, divided (UML-style) shapes, labelled
   blocks, composite shapes with layout constraints that scale their children,
   non-interactive text labels and movable text captions.
+- **Layout and routing hooks**: an optional spring layout
+  (`ShapeCanvas.ApplyLayout`), crossing-aware refinement, and experimental
+  injectable edge routers (`LineShape.SetRouter`,
+  `ShapeCanvas.SetDefaultRouter`, batch `route_many`).
 - **Export**: render the diagram to PNG at any scale (`ShapeCanvas.ExportPng`).
 - **JSON persistence**: `Diagram.Save(path)` / `Diagram.Load(path)` or
   `wxdiagram.persistence`; versioned, portable, no pickle.
@@ -129,6 +133,16 @@ panel on the right; connect shapes by dragging a round side dot onto another
 shape; group/ungroup, duplicate and reorder. File/Edit/Add/Arrange/View/Help
 menus and right-click menus match the main demo, and View > Theme switches
 between System, Light and Dark.
+
+For layout and routing, run the playground:
+
+```bash
+./bin/run-layout              # or: uv run python -m wxdiagram.layoutdemo
+```
+
+It builds a small graph, runs the spring layout, and lets you switch route
+modes, randomise sizes and reset the graph. (Router injection is experimental
+and is not exposed in the playground.)
 
 Small runnable scripts live in `examples/`:
 

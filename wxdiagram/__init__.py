@@ -110,7 +110,31 @@ from .core import (
 )
 from .polygon import PolygonShape
 from .lines import ArrowHead, ControlPoint, LineControlPoint, LineShape
-from .routing import route_edge
+from .routing import (
+    route_edge,
+    RouteRequest,
+    RouteResult,
+    BaseRouter,
+    EdgeRouter,
+    DefaultRouter,
+    DEFAULT_ROUTER,
+    register_router,
+    get_router,
+    available_routers,
+)
+from .layout import (
+    LayoutNode,
+    LayoutEdge,
+    LayoutResult,
+    LayoutEngine,
+    register_layout,
+    get_layout,
+    available_layouts,
+    collect_graph,
+)
+from .layout_spring import SpringLayout
+from .layout_metrics import count_crossings, segments_cross, total_edge_length
+from .layout_refine import reduce_crossings
 from .bmpshape import BitmapShape, ResizableBitmapShape
 from .divided import DividedShape
 from .composite import (
@@ -222,6 +246,28 @@ __all__ = [
     "ConnectableEllipseShape",
     "LineShape",
     "route_edge",
+    "RouteRequest",
+    "RouteResult",
+    "BaseRouter",
+    "EdgeRouter",
+    "DefaultRouter",
+    "DEFAULT_ROUTER",
+    "register_router",
+    "get_router",
+    "available_routers",
+    "LayoutNode",
+    "LayoutEdge",
+    "LayoutResult",
+    "LayoutEngine",
+    "register_layout",
+    "get_layout",
+    "available_layouts",
+    "collect_graph",
+    "SpringLayout",
+    "count_crossings",
+    "segments_cross",
+    "total_edge_length",
+    "reduce_crossings",
     "LinesShape",
     "PointShape",
     "RectangleShape",

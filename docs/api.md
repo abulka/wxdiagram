@@ -14,7 +14,8 @@ generated from the docstrings with mkdocstrings. If you are porting from
 | Edges | `LineShape`, `ConnectionShape`, `ArrowHead` |
 | Bitmaps | `BitmapShape`, `ResizableBitmapShape` |
 | Mixins | `Selectable`, `Resizeable`, `Connectable`, `Attributable` |
-| Routing | `wxdiagram.routing.route_edge`, `LineShape.SetRouteMode` |
+| Routing | `wxdiagram.routing.route_edge`, `LineShape.SetRouteMode`; experimental router injection: `RouteRequest`, `RouteResult`, `BaseRouter`, `DefaultRouter`, `LineShape.SetRouter`, `ShapeCanvas.RouteEdges` |
+| Layout | `LayoutNode`, `LayoutEdge`, `LayoutResult`, `SpringLayout`, `Diagram.ApplyLayout`, `ShapeCanvas.ApplyLayout` |
 | Persistence | `wxdiagram.persistence.save`, `wxdiagram.persistence.load` |
 
 ## Canvas
@@ -242,6 +243,10 @@ Attached or free lines, arrowheads, splines, bends, labels and routing modes.
         - SetLabelPosition
         - SetRouteMode
         - GetRouteMode
+        - SetRouter
+        - GetRouter
+        - GetEffectiveRouter
+        - RefreshEnds
         - UpdateRoute
         - ResetRoute
         - SetSpline
@@ -307,6 +312,59 @@ dependency, so it can be reused by a layout or a custom edge.
 ::: wxdiagram.routing.route_edge
     options:
       show_source: false
+
+Routers are injectable, but this layer is **experimental** and may change or
+be removed in a minor release. The stable surface is `route_edge`,
+`LineShape.SetRouteMode` and `ShapeCanvas.RouteEdges`.
+
+To try the experimental API: implement `BaseRouter.route()` (and optionally
+`route_many()` for batch routing), register it with `register_router`, then
+attach it per edge (`LineShape.SetRouter`) or canvas-wide
+(`ShapeCanvas.SetDefaultRouter`). `DefaultRouter` wraps `route_edge`.
+
+::: wxdiagram.routing.BaseRouter
+    options:
+      show_source: false
+
+::: wxdiagram.routing.DefaultRouter
+    options:
+      show_source: false
+
+## Layout
+
+Layouts are pluggable and pure Python. `Diagram.ApplyLayout` collects
+top-level nodes and attached edges, runs the engine, and moves shapes to the
+resulting top-left positions; `ShapeCanvas.ApplyLayout` additionally re-routes
+edges and refreshes the view.
+
+::: wxdiagram.SpringLayout
+    options:
+      show_source: false
+
+::: wxdiagram.layout.LayoutNode
+    options:
+      show_source: false
+
+::: wxdiagram.layout.LayoutEdge
+    options:
+      show_source: false
+
+::: wxdiagram.layout.LayoutResult
+    options:
+      show_source: false
+
+Crossing quality can be measured and refined independently:
+
+::: wxdiagram.count_crossings
+    options:
+      show_source: false
+
+::: wxdiagram.reduce_crossings
+    options:
+      show_source: false
+
+See also [Layout and routing](layout-routing.md) for custom-engine and
+custom-router examples.
 
 ## Persistence
 

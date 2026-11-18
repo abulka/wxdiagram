@@ -10,7 +10,28 @@ bottom)``; the result is a list of control points plus a style name:
 
 The router deliberately stays simple (no lane occupancy or A*): enough to keep
 an edge out of unrelated boxes while remaining predictable.
+
+Injectable routers (experimental)
+---------------------------------
+
+**Experimental API.**  The router injection layer may change or be removed
+in a minor release; the stable surface is :func:`route_edge` and
+``LineShape.SetRouteMode``.
+
+:class:`RouteRequest` describes one edge routing job, :class:`RouteResult`
+is the outcome, and :class:`BaseRouter` is the interface custom routers
+implement.  :class:`DefaultRouter` wraps the :func:`route_edge` function
+below, so existing behaviour is preserved.  Routers are looked up by name
+in a small registry (:func:`register_router`, :func:`get_router`), mirroring
+:mod:`wxdiagram.persistence`'s shape registry.  ``route_many`` is a batch
+hook: the default loops over :meth:`BaseRouter.route`, while advanced
+routers (lane occupancy, A*) can override it without a protocol change.
 """
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import math
 
@@ -245,4 +266,148 @@ __all__ = [
     "ROUTE_BEND",
     "ROUTE_PADDING",
     "ORTHOGONAL_STUB",
+    "RouteRequest",
+    "RouteResult",
+    "BaseRouter",
+    "EdgeRouter",
+    "DefaultRouter",
+    "register_router",
+    "get_router",
+    "available_routers",
+    "DEFAULT_ROUTER",
 ]
+
+
+Point = Tuple[float, float]
+Rect = Tuple[float, float, float, float]
+
+
+@dataclass(frozen=True)
+class RouteRequest:
+    """One edge routing job (pure data; experimental router API)."""
+
+    edge_id: object
+    start: Point
+    end: Point
+    start_normal: Optional[Point] = None
+    end_normal: Optional[Point] = None
+    obstacles: Tuple[Rect, ...] = ()
+    mode: str = "auto"
+    spread: float = 0.0
+    lane_index: int = 0
+    lane_count: int = 1
+
+
+@dataclass(frozen=True)
+class RouteResult:
+    """Router outcome: polyline points plus the line style.
+
+    Part of the experimental router-injection API.
+    """
+
+    points: Tuple[Point, ...]
+    style: str = "straight"
+    spline: Optional[bool] = None
+
+    def resolved_spline(self) -> bool:
+        """Whether the edge should be drawn as a spline."""
+        if self.spline is not None:
+            return self.spline
+        return self.style == "curved"
+
+
+class BaseRouter:
+    """Interface for injectable edge routers (experimental API)."""
+
+    name = "base"
+
+    def route(self, request: RouteRequest) -> Optional[RouteResult]:
+        """Route one edge; return None to leave the edge untouched."""
+        raise NotImplementedError
+
+    def route_many(self, requests: List[RouteRequest]) -> Dict[object, Optional[RouteResult]]:
+        """Batch hook; the default loops over :meth:`route`."""
+        return {request.edge_id: self.route(request) for request in requests}
+
+
+#: Alias so the protocol reads naturally in annotations.
+EdgeRouter = BaseRouter
+
+
+class DefaultRouter(BaseRouter):
+    """The built-in straight/curved/orthogonal router (experimental wrapper)."""
+
+    name = "default"
+
+    def route(self, request: RouteRequest) -> Optional[RouteResult]:
+        if request.mode is False:
+            return RouteResult(points=(request.start, request.end), style="straight", spline=False)
+        mode = (request.mode or "auto").lower() if isinstance(request.mode, str) else "auto"
+        # Legacy ``True`` (pynsource) means "avoid".
+        if request.mode is True:
+            mode = "avoid"
+        if mode == "straight":
+            points = (request.start, request.end)
+            return RouteResult(points=points, style="straight", spline=False)
+        points, style = route_edge(
+            request.start,
+            request.end,
+            list(request.obstacles),
+            spread=request.spread,
+            prefer_curve=(mode == "curved"),
+            prefer_orthogonal=(mode == "orthogonal"),
+            allow_orthogonal=(mode == "avoid"),
+            start_normal=request.start_normal,
+            end_normal=request.end_normal,
+        )
+        return RouteResult(
+            points=tuple(points),
+            style=style,
+            spline=(style == "curved"),
+        )
+
+
+DEFAULT_ROUTER = DefaultRouter()
+
+_ROUTER_REGISTRY: Dict[str, object] = {"default": DEFAULT_ROUTER}
+
+
+def register_router(name_or_router, router=None):
+    """Register a router instance or class (experimental API).
+
+    Usage::
+
+        register_router("mine", MyRouter())
+        register_router(MyRouter)  # uses ``MyRouter.name``
+    """
+    if router is None:
+        router = name_or_router
+        name = getattr(router, "name", None)
+        if isinstance(router, type):
+            router = router()
+            name = getattr(router, "name", name)
+        if not name:
+            raise ValueError("Router has no name; pass one explicitly")
+    else:
+        name = name_or_router
+    _ROUTER_REGISTRY[name] = router
+    return router
+
+
+def get_router(name_or_router):
+    """Resolve a router instance from an instance, class or name (experimental)."""
+    if name_or_router is None:
+        return DEFAULT_ROUTER
+    if isinstance(name_or_router, str):
+        try:
+            return _ROUTER_REGISTRY[name_or_router]
+        except KeyError:
+            raise KeyError(f"Unknown edge router: {name_or_router!r}") from None
+    if isinstance(name_or_router, type):
+        return name_or_router()
+    return name_or_router
+
+
+def available_routers():
+    """Sorted list of registered router names (experimental API)."""
+    return sorted(_ROUTER_REGISTRY)

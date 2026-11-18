@@ -39,6 +39,12 @@ See `PLAN.md` in the repository for the full, maintained plan.
 
 ## 0.4 — layout
 
-- pluggable `Layout` protocol
-- simple spring/layered layout
+- ✅ pluggable `Layout` protocol (`LayoutNode`/`LayoutEdge`/`LayoutResult`, registry)
+- ✅ simple spring layout (`SpringLayout`, deterministic seed)
+- ✅ experimental router injection (`RouteRequest`/`RouteResult`/`BaseRouter`, per-edge + canvas default, `route_many` batch hook) — UI deliberately not exposed
+- ✅ route mode persistence; experimental router-name persistence (backwards compatible)
+- ✅ `wxdiagram/layoutdemo.py` playground + `bin/run-layout` (independent of pynsource)
+- ✅ crossing metrics + deterministic post-layout refinement (`reduce_crossings`)
+- ✅ `Add random boxes` re-lays out so new nodes participate in the graph
+- layered layout (next)
 - optional Rust bridge for advanced layout

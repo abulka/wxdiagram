@@ -42,6 +42,7 @@ nav:
       - Images, composites and export: tutorials/images-composites-export.md
   - Cookbook: cookbook.md
   - API reference: api.md
+  - Layout and routing: layout-routing.md
   - Migration from wx.lib.ogl: migration-from-wx-lib-ogl.md
   - Design notes: design.md
   - Roadmap: roadmap.md
