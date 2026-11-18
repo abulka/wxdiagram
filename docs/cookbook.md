@@ -179,7 +179,7 @@ canvas.AddShape(caption)
 
 Undo/redo snapshots the shape list and geometry by default. Applications with a
 separate model can override `snapshot_state()` and `restore_state()` to snapshot
-their own state (pynsource snapshots its graph model this way).
+their own state ([pynsource](https://github.com/abulka/pynsource) snapshots its graph model this way).
 
 ## Programmatic selection
 

@@ -1,192 +1,403 @@
-This page compares `wxdiagram` with the `wx.lib.ogl` that ships with
-wxPython 4.3.2. It is a migration guide, not a compatibility promise: the two
-libraries share a lineage and some class names, but `wxdiagram` is a focused
-canvas library with a different API.
+# Migrating from wx.lib.ogl
 
-> **Status (0.1.0):** the P0 items in section 2 — canvas attachment,
-> `AddShape(..., addAfter)` ordering, `Diagram.Clear`, `ShowAll`, stable ids,
-> and the spline/arrow/constraint accessors — are fixed. The API differences
-> in section 3 still apply.
+`wxdiagram` descends from the `wx.lib.ogl` that ships with wxPython. It began
+as `ogl2`, a fork of that library created to fix OGL's drag rendering on
+modern macOS, and was later renamed and packaged as a standalone canvas.
 
-## Bottom line
+That shared lineage matters when porting: **most of the working API is the
+same**. This page separates four things:
 
-`wxdiagram` is **a fork/reimplementation, not a superset or drop-in
-replacement** for `wx.lib.ogl`. It adds genuinely useful new capabilities
-(zoom/pan, JSON persistence, connection UX, keyboard editing), but it also
-exposes only about **a quarter to a third of the per-shape API** of
-`wx.lib.ogl`, with different constructors, a different geometry model, and a
-different event model.
+1. why [pynsource](https://github.com/abulka/pynsource) could run the same code against both libraries;
+2. the calls that behave identically in both;
+3. the small set of differences that need editing;
+4. the wx.lib.ogl subsystems `wxdiagram` deliberately does not have.
 
-The intended positioning is: *“inspired by `wx.lib.ogl`, with a modernised
-API”* — not *“`wx.lib.ogl` plus extras”*.
+> **Status (0.2.7):** the compatibility gaps that mattered to [pynsource](https://github.com/abulka/pynsource) —
+> canvas attachment, `AddShape(..., addAfter)`, `Diagram.Clear`, `ShowAll`,
+> stable ids, spline/arrow/constraint accessors, `CircleShape`, grid/snap,
+> line labels and buffered painting — are implemented. What is still missing
+> is listed in section 6.
 
----
+## 1. Why pynsource could use both libraries
 
-## 1. What wxdiagram adds that wx.lib.ogl does not have
+### One codebase, two backends
 
-These are real additions, not things inherited from wx:
+For seven years [pynsource](https://github.com/abulka/pynsource) ran the same GUI modules against `wx.lib.ogl` and
+`ogl2`, choosing at import time:
 
-| Area | wxdiagram | wx.lib.ogl |
-|---|---|---|
-| **Zoom / pan / fit** | `ZoomIn`, `ZoomOut`, `ZoomTo`, `ZoomReset`, `ZoomToFit`, `CenterOn`, `update_virtual_size`; mouse/selection/centre anchors; Ctrl+wheel, macOS pinch, drag-empty-canvas pan; configurable `ZOOM_MIN_SCALE`, `ZOOM_MAX_SCALE`, `ZOOM_STEP` | **Nothing.** wx only gives you a `ScrolledWindow`; the app must implement zoom entirely |
-| **Persistence** | `Diagram.Save(path)` / `Diagram.Load(path)` and `wxdiagram.persistence`: versioned JSON, shape registry, nested composites/containers, colours/fonts, line endpoints, arrowheads, constraints | **Nothing** in current wx. (No `SaveFile`/`LoadFile` either) |
-| **Connection UX** | Hover a shape to reveal ports; drag port→shape to connect; `join_shapes`; finished edges are attached lines clipped to shape perimeters and re-route when shapes move | Has an attachment model, but no hover ports, no `join_shapes`, no perimeter-clipped "attached line" convenience |
-| **Selection / keyboard** | Canvas-owned `selectedShapes`, shift-click multi-select, Delete, Tab cycle, Ctrl+A, Ctrl+C/V, resize handles | No selection manager and no key bindings; each application does it |
-| **Non-interactive text labels** | `TextShape(x, y, text, colour=…)`, never hit-tested, saves/loads with the diagram | `TextShape` exists but is a full text shape; no “caption/label that never gets in the way” |
-| **Shape set** | `Block`, `PointShape`, `LinesShape`, `ConnectionShape`, `ConnectableEllipseShape`; mixins `Connectable`, `Resizeable`, `Selectable`, `Attributable` | A different, deeper hierarchy (`Shape` has selection/resizing/attachment built in) |
-| **UML helpers** | `DividedShape.AddAttribute/AddAttributes/RemoveAttribute`, `SetLabelColour`, region proportions + `FORMAT_*` layout | `DividedShape` has divisions and control points, but no attribute helpers |
-| **Composite persistence** | Serializable children + constraints, `Constrain()`, `FindConstraint`, `DeleteConstraint`, `RemoveChild` | `CompositeShape` and constraints exist (richer in divisions), but no save/load |
-| **Geometry convenience** | `move_to`, `move_center`, `Copy`, `ChangeShapeOrder`, `AppendShape`, `PopShape`, `line_control_points_to_xy_points` | `Move`/`SetX`/`SetY` only |
-| **Robustness / packaging** | Canvas auto-attachment for insertion paths, lazy pens/fonts, `int()` casts for Python 3.10+, `ast.literal_eval` instead of `eval`, explicit imports + `__all__`, uv packaging, demo, examples, 50 tests, CI | Older code, no packaging/tests/demo |
+```python
+# pynsource, 2019-2026
+if PRO_EDITION:
+    import ogl2 as ogl
+else:
+    import wx.lib.ogl as ogl
+```
 
-**Caveat on lineage:** arrowheads, splines, composites and divided shapes
-already existed in `wx.lib.ogl`. wxdiagram's arrow code is a port; splines now
-have a public API; composites and divided shapes are reimplemented with JSON
-persistence.
+Everything else was written against the `ogl` alias: `UmlCanvas`, the
+`DividedShape` subclasses, `LineShapeUml`, `UmlShapeHandler`, the region
+formatting, the arrow constants and the diagrams themselves. Switching to
+`wxdiagram` was then a one-line change:
 
----
+```python
+import wxdiagram as ogl
+```
 
-## 2. What wx.lib.ogl has that wxdiagram does not
+The reason this worked is not that the libraries are identical. It is that
+the classes, method names, constants and data helpers were carried over from
+`wx.lib.ogl` on purpose, and [pynsource](https://github.com/abulka/pynsource) used the part of the API that was
+stable.
 
-### Fixed in 0.1
+### How much is actually shared?
 
-- `ShapeCanvas.SetDiagram` connects the diagram and attaches shapes.
-- `Diagram.AddShape(..., addAfter)` inserts after the reference shape.
-- `Diagram.Clear(dc)` clears the DC; `DeleteAllShapes()` removes shapes.
-- `Diagram.ShowAll(show)` and `Shape.Show`/`IsShown` work.
-- Stable shape ids, `Diagram.FindShape(id)`, stable ids in JSON.
-- Public `SetSpline`/`IsSpline`.
-- Arrow accessors (`GetArrows`, `AddArrowOrdered`, `ClearArrow`,
-  `FindArrowHead(Id)`, `DeleteArrowHead(Id)`, `SetIgnoreOffsets`).
-- `CompositeShape.GetConstraints` and constraint cleanup helpers.
-- Clean `GraphicsStraightenLine`, `PolylineHitTest`, `RoughlyEqual`,
-  `DrawArcToEllipse` names.
+An automated census of `dir()` output makes `wxdiagram` look like a quarter of
+OGL. That number measures the size of the old library's *entire* surface, not
+the cost of a port.
 
-### Remaining P0
+A more useful measurement is the API a real application actually calls. At
+0.2.7, [pynsource](https://github.com/abulka/pynsource)'s canvas code calls **53 names that OGL defines and that are
+present and working in both libraries** — including every shape, line, region,
+arrow, canvas, diagram and event-handler call it makes. Only three names it
+touched are wx-only (the buffered `Draw()`, the arrow metafile's `Rotate()`,
+and one `OnSizingEndDragLeft` base implementation). The eight wxdiagram-only
+names it uses (`move_to`, `MoveTo`, route modes, `OnLeftUp`, …) are either new
+features or replacements that remove the old workarounds.
 
-| Missing in wxdiagram | Why it matters |
+Across the compared classes, the OGL-defined API measures (names each module
+defines itself, so inherited `wx.Window` members are excluded):
+
+| Measure | Value |
+|---|---:|
+| OGL-defined names in `wx.lib.ogl` | 304 |
+| OGL-defined names in `wxdiagram` | 223 |
+| Shared | 166 |
+| Shared as a share of wx | **55%** |
+| Shared as a share of wxdiagram | **74%** |
+
+`dir()` still undercounts the practical overlap, because it mixes in inherited
+`wx.Window` machinery on one side and counts new convenience methods on the
+other. `ShapeCanvas`, for example, is 97% shared because most of it is
+`wx.ScrolledWindow`.
+
+### The seven real seams
+
+The actual porting work in [pynsource](https://github.com/abulka/pynsource) was this list, not a rewrite:
+
+| Seam | `wx.lib.ogl` | `wxdiagram` | What [pynsource](https://github.com/abulka/pynsource) did |
+|---|---|---|---|
+| Startup | `OGLInitialize()` | `initialize()` | renamed the call |
+| Constructors | `RectangleShape(w, h)` | `RectangleShape(x1, y1, x2, y2)` | adjusted the few shapes it constructs directly |
+| Position | centre `SetX`/`SetY` plus a `Move2` monkeypatch | `move_to(left, top)` and `MoveTo(dc, left, top)` | kept one `setpos`/`getpos` helper |
+| Fonts | setting the shape font also formatted the region | shape and regions hold fonts separately | added `GetRegions()[0].SetFont(font)` |
+| Event handler | `UmlShapeHandler` | `UmlShapeHandlerOglTwo` adapter | swapped the base class and method names |
+| Painting | required `canvas.Draw()` to blit its back buffer | paints directly in `EVT_PAINT` | deleted those calls |
+| Zoom/pan | application code | built into the canvas | removed the `PRO_EDITION` guards |
+
+There was also a one-off: on modern macOS, `wx.lib.ogl` needed [pynsource](https://github.com/abulka/pynsource)'s
+162-line `repair_ogl.py` monkeypatch to draw shapes while dragging.
+`wxdiagram` needs no equivalent.
+
+### Why the old library's surface is so much bigger
+
+The missing third is not mostly everyday drawing calls. It is large legacy
+subsystems and accessor pairs:
+
+- `DrawnShape` / `PseudoMetaFile` / `DrawOp` — recording drawing operations
+  into metafiles, with import and orientation handling;
+- `DivisionShape` / `DivisionControlPoint` / `PopupDivisionMenu` — recursive
+  subdividable containers;
+- the full attachment/branching model (`Attach`, `Detach`, branching styles);
+- rotation;
+- the old double-buffered canvas (`Draw`, `GetBuffer`);
+- many `GetX`/`SetX` pairs for state that `wxdiagram` either exposes directly
+  or no longer stores.
+
+A normal diagram application does not use most of that, which is why the same
+[pynsource](https://github.com/abulka/pynsource) modules could ignore it on both backends.
+
+## 2. Where the calls are the same
+
+The calls in this section use the same name, arguments and return values in
+`wx.lib.ogl` and `wxdiagram` 0.2.7. Where a behaviour detail differs, the note
+says so. If your application is built from these, porting is mostly the
+import line.
+
+### Canvas and diagram
+
+| Call | Notes |
 |---|---|
-| **Mouse drag tolerance** (`DEFAULT_MOUSE_TOLERANCE`, `Diagram.SetMouseTolerance`, `GetMouseTolerance`, canvas tolerance logic) | wx ignores drags within 3 px; wxdiagram starts moving on the first 1 px motion. Noticeable click/drag feel difference. |
-| **`CircleShape`** | Trivial convenience over `EllipseShape`; wx has it. |
-| **`WhollyContains`, `OGLCleanUp`** | Small helper parity; not critical. |
-| **Unimplemented exported constants** | `SHADOW_*`, `BRANCHING_*`, `OP_*`, `LINE_ALIGNMENT_*` are exported but shadow/branching/sensitivity are not implemented. Either implement or stop exporting them (especially `SHADOW_*`). |
+| `ShapeCanvas(parent)` | same |
+| `canvas.SetDiagram(diagram)` | same; it now also attaches shapes and calls `diagram.SetCanvas` |
+| `canvas.GetDiagram()` | same |
+| `diagram.AddShape(shape, addAfter)` | same; see section 4 for the no-`addAfter` default |
+| `diagram.GetShapeList()` | same |
+| `diagram.FindShape(id)` | same |
+| `diagram.DeleteAllShapes()` | same |
+| `diagram.Clear(dc)` | same: clears the device context |
+| `diagram.ShowAll(show)` | same |
+| `canvas.PrepareDC(dc)` | same |
 
-### P1 — usability parity (worth adding)
+### Shapes and appearance
 
-- **Grid + snap**: `Diagram.Snap(x, y)`, `SetGridSpacing`, `GetGridSpacing`, `SetSnapToGrid`, `GetSnapToGrid`, `ShapeCanvas.Snap`. Completely absent in wxdiagram.
-- **Off-screen buffer / double-buffered painting**: wx's `ShapeCanvas.Draw()`, `GetBuffer()`, `OnSize()`, `BG_STYLE_PAINT`. wxdiagram paints directly in `onPaintEvent`, so large diagrams may flicker/repaint more. Worth benchmarking against your “faster” claim.
-- **Line labels**: wx's `LabelShape`, `LineShape.AddText`, `FormatText`, `GetRegions`, `GetLabelPosition`, and label hit-testing. wxdiagram creates three label regions in `LineShape` but never draws them (`_labelObjects` stays `None`), so edge labels are effectively unsupported.
-- **Text regions on the base `Shape`**: `AddText`, `AddRegion`, `GetRegions`, `FindRegion`, `NameRegions`, `SetRegionName`, `FormatText`, `GetFormatMode`, `SetFormatMode`. Today these exist only on some subclasses.
-- **8-way resize handles**: ✅ wx's `MakeControlPoints` gives 8 handles (corners + edges); wxdiagram uses `RECT_HANDLES` for bounding-box shapes. Corner drags are proportional by default (Shift = free); edge drags resize one axis. Connectable shapes show four corner handles and four round side connection dots instead, so resize and connect affordances never overlap. Line-like shapes still get one `ResizeableNode` per control point.
-- **Fixed size / maintain aspect ratio**: `SetFixedSize`, `SetFixedWidth/Height`, `SetMaintainAspectRatio` (used by `CircleShape` in wx).
-- **Highlight / flash**: `SetHighlight`, `IsHighlighted`, `Flash` (useful for search results or selection feedback).
-- **Base-shape accessors**: `GetFont/SetFont`, `GetTextColour/SetTextColour`, `GetPen/GetBrush`, `GetDrawHandles/SetDrawHandles`, `Draggable`, `SetSensitivityFilter`.
-- **`ShapeCanvas.FindShape(x, y)`** returning `(shape, attachment)`; `Shape.Draw`/`DrawContents` naming aliases.
+| Call | Notes |
+|---|---|
+| `shape.SetPen(pen)` / `SetBrush(brush)` | same |
+| `shape.SetFont(font)` | same one-argument call; wx's optional `regionId` is not supported |
+| `shape.SetCanvas(canvas)` / `GetCanvas()` | same |
+| `shape.SetDraggable(flag)` / `SetCentreResize(flag)` | same |
+| `shape.Show(show)` / `IsShown()` | same |
+| `shape.GetX()` / `GetY()` | same: both return the centre |
+| `shape.GetBoundingBoxMin()` / `GetBoundingBoxMax()` | same |
+| `shape.Move(dc, x, y, display=True)` | same |
+| `shape.Delete()` | same |
+| `RectangleShape.AddText(string)` | same |
+| `RectangleShape.AddRegion(region)` / `GetRegions()` | same |
+| `RectangleShape.FormatText(dc, text, index)` | same |
+| `DividedShape.SetRegionSizes()` | same |
 
-### P2 — large subsystems; decide deliberately
+### Regions and divided shapes
 
-- **`DrawnShape` / `PseudoMetaFile` / `DrawOp` family** — draw-a-shape-like-a-DC recording plus metafile import and 4 orientations. You already dropped this; keep it on the roadmap.
-- **`DivisionShape` / `DivisionControlPoint` / `PopupDivisionMenu`** — recursive subdividable containers with right-click split/edit menus. wxdiagram has no recursive-container equivalent; this is the biggest shape-editing feature wx has that wxdiagram lacks.
-- **Full attachment/branching model** — `Attach`/`Detach`, branching styles (`BRANCHING_ATTACHMENT_NORMAL/BLOB`), attachment ordering, `MoveLineToNewAttachment`, attachment-aware hit-testing. wxdiagram deliberately simplified connections; only port this if you need orthogonal routing/hierarchies.
-- **Rotation** (`SetRotation`, `Rotate`, `GetRotation`) — absent; hard to do well with plain `wx.DC`, likely needs `GraphicsContext`.
-- **Shadow drawing** — constants exist, no implementation.
-- **Quick edit mode** — minor; wx uses it to suppress refreshes/handles.
+```python
+shape = ogl.DividedShape(220, 140)
 
----
+header = ogl.ShapeRegion()
+header.SetText("UserController")
+header.SetProportions(0.0, 0.25)
+header.SetFormatMode(ogl.FORMAT_CENTRE_HORIZ)
+shape.AddRegion(header)
 
-## 3. API comparison
+body = ogl.ShapeRegion()
+body.SetText("+ get(name)\n+ post(req)")
+body.SetProportions(0.0, 0.75)
+body.SetFormatMode(ogl.FORMAT_NONE)
+shape.AddRegion(body)
 
-### 3.1 Namespace
+shape.SetRegionSizes()
+shape.FormatText(dc, body.GetText(), 1)
+```
 
-**Common classes (19):** `Shape`, `ShapeEvtHandler`, `RectangleShape`, `EllipseShape`, `PolygonShape`, `TextShape`, `BitmapShape`, `DividedShape`, `LineShape`, `ControlPoint`, `LineControlPoint`, `ArrowHead`, `ShapeCanvas`, `Diagram`, `CompositeShape`, `Constraint`, `ConstraintType`, `ShapeRegion`, `ShapeTextLine`.
+`ShapeRegion`, `ShapeTextLine`, the `FORMAT_*` constants and the region
+proportion model are shared, so UML-style class boxes port without changes.
 
-**In wx, absent from wxdiagram (15):** `CircleShape`, `DrawnShape`, `DrawOp`, `OpDraw`, `OpPolyDraw`, `OpSetClipboard`/`OpSetClipping`, `OpSetGDI`, `PseudoMetaFile`, `DivisionShape`, `DivisionControlPoint`, `DividedShapeControlPoint`, `PolygonControlPoint`, `PopupDivisionMenu`, `LabelShape`, `OGLConstraint`.
+### Lines and arrows
 
-**In wxdiagram, absent from wx:** `Block`, `PointShape`, `LinesShape`, `ConnectionShape`, `ConnectableEllipseShape`, `Attributable`, `Connectable`, `Selectable`, `Resizeable`.
+```python
+line = ogl.LineShape()
+line.SetCanvas(canvas)
+line.SetEnds(x1, y1, x2, y2)
+line.MakeLineControlPoints(2)
+line.SetSpline(True)
+line.AddArrow(ogl.ARROW_ARROW, ogl.ARROW_POSITION_END)
+line.AddText("uses")
+```
 
-### 3.2 Per-class API coverage
+| Call | Notes |
+|---|---|
+| `LineShape.SetEnds(x1, y1, x2, y2)` / `GetEnds()` | same |
+| `MakeLineControlPoints(n)` | same |
+| `SetSpline(True)` / `IsSpline()` | same |
+| `AddArrow(type, end, size, ...)` | same signature |
+| `GetArrows()`, `AddArrowOrdered()`, `ClearArrow()` | same |
+| `FindArrowHead(id)`, `DeleteArrowHead(id)`, `SetIgnoreOffsets()` | same |
+| `LineShape.AddText(string)` | same; labels are drawn in `wxdiagram` |
+| `ArrowHead`, `Constraint`, `ConstraintType` | API-identical |
 
-Counts are public members from `dir()` (so they include inherited members). This is the clearest measure of “how much of the old API is still there”:
+### Event handlers
+
+The base class name and the drawing hooks survive, but handlers in
+`wxdiagram` are mixin-style: the shape *is* the handler, so `GetShape()`
+returns `self`.
+
+```python
+class MyShape(ogl.DividedShape):
+    def OnDraw(self, dc):
+        super().OnDraw(dc)
+        # custom painting, identical in wx.lib.ogl and wxdiagram
+```
+
+| Call | Notes |
+|---|---|
+| subclass `ShapeEvtHandler` | same base class name; see the mixin note above |
+| `shape.OnDraw(dc)` / `OnDrawContents(dc)` | same override points |
+| `OnSizingEndDragLeft(pt, x, y, keys, attch)` | same signature as the call control points make |
+| `GetShape()` | wx returns the associated shape; `wxdiagram` returns `self` because the shape is the handler |
+
+### Constants
+
+`FORMAT_NONE`, `FORMAT_CENTRE_HORIZ`, `FORMAT_CENTRE_VERT`, the `ARROW_*`
+family, the `CONSTRAINT_*` family and the `CONTROL_POINT_*` constants use the
+same names and values.
+
+## 3. Equivalent calls that did change
+
+These are the calls where the name or argument list differs. This is the
+useful table to keep open while porting.
+
+| `wx.lib.ogl` | `wxdiagram` | Notes |
+|---|---|---|
+| `OGLInitialize()` | `initialize()` | call once before creating shapes |
+| `RectangleShape(w, h)` | `RectangleShape(x1, y1, x2, y2)` | `Block` / `ResizableRectangleShape` for handles |
+| `EllipseShape(w, h)` | `EllipseShape(x1, y1, x2, y2)` | `ConnectableEllipseShape()` for resizing and ports |
+| `CircleShape(diameter)` | `CircleShape(x, y, diameter=...)` | |
+| `TextShape(width, height)` | `TextShape(x, y, text, colour, font)` | a caption, not a text box |
+| `Shape(canvas)` | `Shape(x=[], y=[])` | |
+| `shape.SetX(cx)` / `SetY(cy)` | `shape.move_to(left, top)` / `MoveTo(dc, left, top)` | geometry is stored as x/y point lists |
+| `shape.SetSize(w, h)` on a composite | `SetSize(x, y, recursive=False)` | |
+| `canvas.InsertShape(shape)` | `canvas.InsertShape(shape, index=0)` | the old call still works |
+| `OnLeftClick(x, y, keys, attachment)` | `OnLeftUp(event)` | |
+| `OnLeftDoubleClick(x, y, keys, att)` | `OnLeftDClick(event)` | |
+| `OnRightClick(x, y, keys, att)` | `OnRightDown(event)` / `OnRightUp(event)` | |
+| `OnBeginDragLeft` / `OnDragLeft` | no per-shape equivalent | the canvas moves the shape |
+| `OnEndDragLeft(x, y, keys, att)` | `OnEndDragLeft(event)` | no attachment argument |
+| `handler.SetShape(shape)` / `GetShape()` | handler is the shape | the shape subclasses `ShapeEvtHandler` |
+| `shape.Draw(dc)` | `shape.draw(dc)` | lowercase |
+| `ShapeCanvas.FindShape(x, y)` | `canvas.getCurrentShape(event)` | |
+| `canvas.Draw()` | — | paints directly in `EVT_PAINT` |
+| `repairOGL()` | — | no longer needed |
+| `ShapeCanvas(... style=wx.BORDER)` | `ShapeCanvas(... style=0)` | pass `wx.BORDER` explicitly if wanted |
+
+## 4. Same name, different behaviour
+
+A few calls exist in both but do not mean quite the same thing:
+
+- **`Diagram.AddShape(shape)` with no `addAfter`.** `wx.lib.ogl` appends to
+  the end of the shape list; `wxdiagram` inserts at the front. Both insert
+  after `addAfter` when one is given. The same applies to `canvas.AddShape`,
+  which delegates to the diagram. If you rely on insertion order for z-order,
+  pass `addAfter` or call `diagram.ChangeShapeOrder(shape, pos)` afterwards.
+- **`Shape.SetFont(font)`.** In wx, setting the shape font also drives the
+  default region's formatting. In `wxdiagram` the shape and its regions hold
+  fonts separately, so set the region font too:
+  `shape.GetRegions()[0].SetFont(font)`.
+- **`RectangleShape` and `EllipseShape` interactivity.** In wx every `Shape`
+  is selectable and resizable. In `wxdiagram` the plain primitives are not;
+  use `Block`, `ResizableRectangleShape`, `ConnectableEllipseShape`, or add
+  the `Selectable` / `Resizeable` mixins.
+- **`TextShape`.** wx's `TextShape(width, height)` is a text box.
+  `wxdiagram.TextShape(x, y, text, …)` is a non-interactive caption.
+- **Geometry storage.** `GetX()`/`GetY()` still return the centre, but the
+  underlying state is `shape.x` / `shape.y` lists of extent points, not
+  `_xpos`/`_ypos` plus `_width`/`_height`. Code that pokes those internals
+  needs rewriting.
+- **`ShapeCanvas` default style.** wx uses `wx.BORDER`; `wxdiagram` uses
+  `0`. Pass the style explicitly if your layout depends on it.
+- **Event handlers are mixins.** In wx a `ShapeEvtHandler` is a separate
+  object associated with a shape. In `wxdiagram` the shape itself inherits
+  `ShapeEvtHandler`; `SetShape()` and `SetEventHandler()` are accepted but do
+  nothing. Put the handler methods on the shape subclass, and use
+  `GetShape()` (which returns `self`) if you want code that reads the same in
+  both libraries.
+- **Event granularity.** wx distinguishes click from drag with a tolerance
+  and passes an `attachment` argument. `wxdiagram` distinguishes down/up,
+  ignores motion below `ShapeCanvas.DRAG_TOLERANCE` (3 px, the same value wx
+  uses), and has no attachment argument.
+
+## 5. What wxdiagram adds
+
+These are additions, not things inherited from wx:
+
+| Area | wxdiagram |
+|---|---|
+| **Zoom / pan / fit** | `ZoomIn`, `ZoomOut`, `ZoomTo`, `ZoomReset`, `ZoomToFit`, `CenterOn`, `update_virtual_size`; Ctrl+wheel, macOS pinch, drag-empty-canvas pan |
+| **Persistence** | `Diagram.Save(path)` / `Diagram.Load(path)`; versioned JSON with shapes, composites, colours, fonts, arrows and constraints |
+| **Connection UX** | hover ports, drag-port-to-shape, `join_shapes`, perimeter-clipped attached edges that re-route when shapes move |
+| **Selection / keyboard** | marquee and multi-select, Delete, Tab cycle, Ctrl+A/C/V, undo/redo, nudge, z-order |
+| **Grid and guides** | optional grid, snap-to-grid, magnetic alignment guides |
+| **Edge labels** | `LineShape.AddText`, `SetLabelPosition`, hit-tested label rectangles |
+| **Export** | `ShapeCanvas.ExportPng` at any scale |
+| **Layout / routing** | `ApplyLayout("spring")`, crossing reduction, per-edge `SetRouteMode` (`straight`, `auto`, `avoid`, `curved`, `orthogonal`) |
+| **Packaging** | explicit imports, `__all__`, uv packaging, tests, CI, demos |
+
+## 6. What wxdiagram still lacks
+
+### Small parity gaps
+
+| Missing | Why it matters |
+|---|---|
+| Text regions on the base `Shape` | `AddText`, `AddRegion`, `GetRegions`, `FormatText` exist on `RectangleShape`, `DividedShape`, `CompositeShape` and `LineShape`, but not on every shape |
+| `ShapeCanvas.FindShape(x, y)` returning `(shape, attachment)` | use `getCurrentShape(event)` instead |
+| `GetFont`, `GetTextColour`/`SetTextColour` | font is write-only on some shapes; no text-colour accessor |
+| `SetHighlight` / `IsHighlighted` / `Flash` | useful for search results |
+| `SetFixedSize`, `SetFixedWidth/Height`, `SetMaintainAspectRatio` | proportional resizing must be done by the application |
+| `SetMouseTolerance` | `DRAG_TOLERANCE` is a class attribute; no per-diagram setter |
+| `WhollyContains`, `OGLCleanUp` | small helpers |
+| `InsertLineControlPoint`, `SetCornerRadius` | line/bend and rounded-rectangle conveniences |
+| `SHADOW_*`, `BRANCHING_*`, `OP_*`, `LINE_ALIGNMENT_*` | exported for name compatibility, but shadow and branching behaviour is not implemented |
+
+### Large subsystems
+
+These are deliberate omissions, not accidents:
+
+- **`DrawnShape` / `PseudoMetaFile` / `DrawOp`** — record-and-replay drawing
+  and metafile import.
+- **`DivisionShape` / `DivisionControlPoint` / `PopupDivisionMenu`** —
+  recursive subdividable containers with split/edit menus.
+- **Full attachment/branching model** — `Attach`/`Detach`, branching styles,
+  attachment ordering, attachment-aware hit-testing. `wxdiagram` uses ports
+  and attached lines instead.
+- **Rotation** — `SetRotation`, `Rotate`, `GetRotation`.
+- **Shadow drawing** — constants exist, no renderer.
+
+If you need one of these, keep the corresponding wx code or open a roadmap
+discussion; they are not hiding behind a renamed method.
+
+## 7. Per-class coverage
+
+Public members from `dir()` (including inherited members), at 0.2.7:
 
 | Class | wx members | wxdiagram members | shared | wx coverage |
 |---|---:|---:|---:|---:|
-| `Shape` | 160 | 51 | 35 | **22%** |
+| `Shape` | 160 | 73 | 43 | 27% |
 | `ShapeEvtHandler` | 34 | 18 | 5 | 15% |
-| `RectangleShape` | 166 | 72 | 55 | **33%** |
-| `EllipseShape` | 164 | 54 | 38 | 23% |
-| `PolygonShape` | 173 | 54 | 38 | 22% |
-| `TextShape` | 166 | 53 | 36 | 22% |
-| `BitmapShape` | 170 | 78 | 61 | **36%** |
-| `DividedShape` | 168 | 81 | 59 | 35% |
-| `LineShape` | 210 | 73 | 56 | 27% |
-| `CompositeShape` | 182 | 88 | 67 | 37% |
-| `Diagram` | 24 | 15 | 9 | 38% |
-| `ArrowHead` | 15 | 15 | 15 | 100% |
-| `Constraint` | 3 | 3 | 3 | 100% |
+| `RectangleShape` | 166 | 91 | 59 | 36% |
+| `EllipseShape` | 164 | 77 | 46 | 28% |
+| `PolygonShape` | 173 | 78 | 46 | 27% |
+| `TextShape` | 166 | 75 | 44 | 27% |
+| `BitmapShape` | 170 | 98 | 65 | 38% |
+| `DividedShape` | 168 | 101 | 63 | 38% |
+| `LineShape` | 210 | 125 | 79 | 38% |
+| `CompositeShape` | 182 | 111 | 74 | 41% |
+| `Diagram` | 24 | 22 | 15 | 62% |
+| `ArrowHead` | 15 | 15 | 15 | **100%** |
+| `Constraint` | 3 | 3 | 3 | **100%** |
+| `ShapeCanvas` | 464 | 535 | 449 | **97%** |
 
-So the **data/constraint helper classes are API-identical**, but the **shape hierarchy is substantially reduced**.
+Read this table as *surface area*, not *porting effort*. The data and
+constraint helpers are identical; the shape hierarchy is smaller because the
+metafile, division and attachment subsystems are gone. The calls a typical
+application makes are overwhelmingly in the shared 166.
 
-### 3.3 Constructors and semantics differ
+## 8. Porting checklist
 
-These are the traps most likely to bite someone porting from `wx.lib.ogl`:
+1. **Alias the import** and keep the rest of the module:
+   ```python
+   import wxdiagram as ogl
+   ```
+2. **Call `initialize()` once** at startup instead of `OGLInitialize()`.
+3. **Fix constructors** — rectangles, ellipses, circles and text shapes take
+   coordinates rather than width/height:
+   ```python
+   # before
+   shape = ogl.RectangleShape(120, 60)
+   # after
+   shape = ogl.RectangleShape(0, 0, 120, 60)
+   ```
+4. **Replace centre-based positioning** with `move_to(left, top)` (diagram
+   coordinates) or `MoveTo(dc, left, top)` (inside a paint/refresh pass). Keep
+   a single `setpos`/`getpos` helper rather than editing every call site.
+5. **Rename the event hooks** you override: `OnLeftClick` → `OnLeftUp`,
+   `OnLeftDoubleClick` → `OnLeftDClick`, `OnRightClick` → `OnRightDown`/`Up`.
+   Drop the `attachment` argument; keep `OnEndDragLeft(event)`.
+6. **Set region fonts explicitly** after `SetFont`.
+7. **Delete `canvas.Draw()` and `repairOGL()` calls.** Painting is automatic.
+8. **Decide about interaction** — if your shapes were plain
+   `RectangleShape`/`EllipseShape` and relied on wx's built-in handles, switch
+   to `Block` or add the `Selectable`/`Resizeable` mixins.
+9. **Run a contract test.** [pynsource](https://github.com/abulka/pynsource)
+   keeps one at `src/tests/test_wxdiagram_contract.py` that asserts every name
+   its canvas needs still exists. A twenty-line version of that test will
+   catch most upgrade breaks.
+10. **Check the omissions list** in section 6 before porting code that uses
+    metafiles, divisions, rotation or the attachment model.
 
-| API | wx.lib.ogl | wxdiagram |
-|---|---|---|
-| `Shape` | `Shape(canvas=None)` | `Shape(x=[], y=[])` |
-| `RectangleShape` | `RectangleShape(w=0, h=0)` | `RectangleShape(x=20, y=20, x2=90, y2=90)` |
-| `EllipseShape` | `EllipseShape(w, h)` | `EllipseShape(x, y, x2, y2)` |
-| `TextShape` | `TextShape(width, height)` — a full text shape | `TextShape(x, y, text, colour, font)` — a caption |
-| Geometry storage | centre `_xpos/_ypos` + `_width/_height` | `x`/`y` **lists** of points; `_xpos/_ypos` are computed properties; `_width` asserts exactly 2 x-points |
-| `InsertShape` | `InsertShape(object)` | `InsertShape(shape, index=0)` |
-| `AddShape` | inserts **after** `addAfter` | inserts **after** `addAfter` |
-| `Diagram.Clear(dc)` | clears the DC | deletes all shapes and deselects |
-| `Diagram.ShowAll(show)` | calls `Show` on every shape | no-op |
-| `RectangleShape` interactivity | selectable/resizable/connectable via base `Shape` | **not** `Selectable`/`Resizeable`; use `Block` for that |
-| `EllipseShape` | resizable | no `SetSize`; use `ConnectableEllipseShape` |
-| `CompositeShape.SetSize` | `(w, h, recursive=True)` | inherited `(x, y, recursive=False)` |
-| `ShapeCanvas.SetDiagram` | only stores the diagram | also attaches shapes, but does **not** call `diagram.SetCanvas(self)` |
-| `ShapeCanvas` default style | `wx.BORDER` | `0` |
-
-### 3.4 Event model
-
-This is the biggest incompatibility for application code:
-
-| wx.lib.ogl | wxdiagram |
-|---|---|
-| `OnLeftClick(x, y, keys, attachment)` | `OnLeftDown(event)` / `OnLeftUp(event)` |
-| `OnLeftDoubleClick(x, y, keys, attachment)` | `OnLeftDClick(event)` |
-| `OnRightClick(x, y, keys, attachment)` | `OnRightDown(event)` / `OnRightUp(event)` / `OnRightDClick(event)` |
-| `OnBeginDragLeft(x, y, keys, attachment)` | no per-shape begin-drag callback |
-| `OnDragLeft(draw, x, y, keys, attachment)` | no per-shape drag callback; canvas calls `shape.move(dx, dy)` directly |
-| `OnEndDragLeft(x, y, keys, attachment)` | `OnEndDragLeft(event)` (broadcast, no attachment) |
-| `OnBeginDragRight` / `OnDragRight` / `OnEndDragRight` | absent |
-| Canvas hooks `OnLeftClick`, `OnBeginDragLeft`, `OnDragLeft`, `OnEndDragLeft`, `OnMouseEvent` | Canvas hooks `OnLeftDown`, `OnLeftUp`, `OnMotion`, `OnMouseWheel`, `OnMagnify`, `OnKeyDown` |
-
-Consequences:
-- wx-style overrides silently do nothing (different method names or signatures).
-- There is no `attachment` argument, so attachment-aware code has to be redesigned.
-- wxdiagram distinguishes down/up; wx distinguishes click/drag with tolerance.
-- wxdiagram adds shape-level `OnSelect`, `OnDeselect`, `OnMove`, `OnResize`, `OnConnect` — useful, but new.
-
-### 3.5 Naming and API hygiene
-
-- wxdiagram mixes two conventions: `SetPen`, `AddText`, `HitTest`, `Select`, `ZoomToFit`, `update_virtual_size`, `join_shapes`, `select`, `deselect`, `draw`, `move`, `move_to`. There is no consistent rule.
-- Some public names still reflect implementation history: `sanity()`,
-  `onPaintEvent`, and a mix of CamelCase/snake_case methods.
-- `wxdiagram.__init__` also leaks `version` and `PackageNotFoundError` from `importlib.metadata` (not in `__all__`, but importable).
-- wx's docs are a complete API reference; wxdiagram's `docs/source` is still a Sphinx stub, so users have only the README.
-
----
-
-## Migration guidance
-
-1. **Don't treat wxdiagram as a drop-in `wx.lib.ogl` replacement.** Use this table when porting code: constructors, `Draw`→`draw`, event signatures and the geometry model all differ.
-2. **Fix the P0 items before 1.0.** The `AddShape`/`SetDiagram` canvas-detachment bug, `Diagram.Clear` semantics, `AddShape(after)` order, missing `SetSpline`, missing `GetConstraints`, and unimplemented exported constants are all release-blocking for a general-purpose library.
-3. **Add P1 selectively** — grid/snap, drag tolerance, buffered painting, line labels, and 8-way resize are the highest-value parity items. Rotation, divisions, drawn shapes, and branching attachments should be explicit roadmap decisions, not accidental omissions.
-4. **Keep the naming policy consistent.** The package/class renames are done;
-   the remaining mixed CamelCase/snake_case methods are a 0.2 cleanup. Add a
-   `wxdiagram.compat` shim only if users need wx-style aliases.
-5. **Publish real API docs** and add a compatibility contract test for the wx-inspired names you decide to support.
-
-If you want, I can turn the P0/P1 list into a concrete ordered implementation plan (with file-level changes and test additions) once you switch out of Plan mode.
-
+The intended positioning is *"inspired by `wx.lib.ogl`, with a modernised
+API"* — but the API it kept is the API most applications actually use.

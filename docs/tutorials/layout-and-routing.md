@@ -182,7 +182,7 @@ For the canvas and shape-editor demos, see the three-demo list in
 
 ## Heritage
 
-The spring engine shares its conceptual ancestry with pynsource's
+The spring engine shares its conceptual ancestry with [pynsource](https://github.com/abulka/pynsource)'s
 `GraphLayoutSpring`, but the two are deliberately separate implementations.
 See the [appendix](../layout-routing.md#appendix-pynsource-heritage-and-variations)
-for the differences and why pynsource keeps its own pipeline.
+for the differences and why [pynsource](https://github.com/abulka/pynsource) keeps its own pipeline.

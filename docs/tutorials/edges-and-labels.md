@@ -62,7 +62,7 @@ four round drop dots while you drag.  `ShapeCanvas.join_shapes()` receives an
 | `Alt` / `Option` | `composition` |
 
 The base canvas treats these as plain attached lines; applications such as
-pynsource override `join_shapes()` to draw the matching UML relationship.
+[pynsource](https://github.com/abulka/pynsource) override `join_shapes()` to draw the matching UML relationship.
 
 ## Routing modes
 

@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Regenerate the demo screenshots used by the docs and README.
+
+Run from the repository root:
+
+    uv run python bin/make-demo-screenshots
+
+Writes ``docs/shapesdemo.png`` and ``docs/layoutdemo.png``.  The kitchen-sink
+hero image (``docs/demo.png``) is a canvas export rather than a window shot and
+is produced separately.
+
+The captures use ``wx.WindowDC`` so they work without screen-recording
+permissions.  On macOS the global menu bar is not part of the window and is
+therefore not captured.
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+from pathlib import Path
+
+import wx
+
+from wxdiagram.layoutdemo import LayoutDemoFrame
+from wxdiagram.shapesdemo import ShapesDemoFrame
+
+SETTLE_SECONDS = 1.0
+
+
+def _settle() -> None:
+    """Let wx finish layout and paint before grabbing the window."""
+    for _ in range(30):
+        wx.Yield()
+    time.sleep(SETTLE_SECONDS)
+    for _ in range(30):
+        wx.Yield()
+
+
+def capture_window(frame: wx.Window, path: Path, prepare=None) -> None:
+    """Save the frame's client area to ``path`` as a PNG.
+
+    ``prepare`` runs after the frame has been shown and laid out, so actions
+    such as running a layout see the final viewport size.
+    """
+    frame.Show()
+    frame.Raise()
+    frame.Layout()
+    frame.Update()
+    _settle()
+    if prepare is not None:
+        prepare()
+        _settle()
+
+    width, height = frame.GetClientSize()
+    bitmap = wx.Bitmap(width, height)
+    memory = wx.MemoryDC(bitmap)
+    try:
+        source = wx.WindowDC(frame)
+        memory.Blit(0, 0, width, height, source, 0, 0)
+        del source
+    finally:
+        memory.SelectObject(wx.NullBitmap)
+    if not bitmap.SaveFile(str(path), wx.BITMAP_TYPE_PNG):
+        raise RuntimeError(f"could not write {path}")
+    print(f"wrote {path} ({width}x{height})")
+
+
+def make_shapes_screenshot(out_dir: Path) -> None:
+    frame = ShapesDemoFrame()
+    try:
+        # The properties panel and canvas are designed to be readable in light
+        # mode; the system theme may be dark.
+        frame.theme_name = "light"
+        frame._apply_theme()
+        capture_window(frame, out_dir / "shapesdemo.png")
+    finally:
+        frame.Destroy()
+
+
+def make_layout_screenshot(out_dir: Path) -> None:
+    frame = LayoutDemoFrame()
+    try:
+        # Show the demo after the spring layout has run, not the initial grid.
+        capture_window(frame, out_dir / "layoutdemo.png", prepare=lambda: frame.on_layout(None))
+    finally:
+        frame.Destroy()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("docs"),
+        help="directory for the PNG files (default: docs)",
+    )
+    args = parser.parse_args()
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    app = wx.App(redirect=False)
+    try:
+        make_shapes_screenshot(args.out_dir)
+        make_layout_screenshot(args.out_dir)
+    finally:
+        app.Destroy()
+
+
+if __name__ == "__main__":
+    main()

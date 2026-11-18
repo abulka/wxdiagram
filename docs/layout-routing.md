@@ -2,7 +2,7 @@
 
 `wxdiagram` ships a small built-in spring layout and an injectable edge
 router. Both are optional: the canvas works with hand-placed shapes and
-straight edges, and pynsource keeps its own coordinate mapping and overlap
+straight edges, and [pynsource](https://github.com/abulka/pynsource) keeps its own coordinate mapping and overlap
 removal on top.
 
 Positions use **top-left** coordinates, matching `Shape.MoveTo`.
@@ -102,15 +102,15 @@ are also persisted; unknown names on load fall back to the built-in router.
 
 `wxdiagram` began life as the canvas inside
 [pynsource](https://github.com/abulka/pynsource), and the spring layout shares
-that ancestry.  pynsource's `GraphLayoutSpring` was itself ported from
+that ancestry.  [pynsource](https://github.com/abulka/pynsource)'s `GraphLayoutSpring` was itself ported from
 `Graph::Layouter::Spring` and a JavaScript version.  When the canvas was
 extracted into this library, the layout was reworked as a generic,
 deterministic, node-size-aware engine rather than copied verbatim.  The
-wxdiagram module describes itself as a clean-room port; pynsource remains GPL3
+wxdiagram module describes itself as a clean-room port; [pynsource](https://github.com/abulka/pynsource) remains GPL3
 and wxdiagram is MIT.
 
 The two engines are **deliberately separate**, not an unfinished
-deduplication.  pynsource still ships its original engine because its layout
+deduplication.  [pynsource](https://github.com/abulka/pynsource) still ships its original engine because its layout
 is only one stage of a larger application pipeline:
 
 - `CoordinateMapper` maps dimensionless `layoutPosX/layoutPosY` values to
@@ -121,26 +121,26 @@ is only one stage of a larger application pipeline:
 
 ### How the implementations differ
 
-| Aspect | pynsource `GraphLayoutSpring` | wxdiagram `SpringLayout` |
+| Aspect | [pynsource](https://github.com/abulka/pynsource) `GraphLayoutSpring` | wxdiagram `SpringLayout` |
 |---|---|---|
-| Purpose | pynsource application pipeline | generic library engine |
+| Purpose | [pynsource](https://github.com/abulka/pynsource) application pipeline | generic library engine |
 | Starting positions | all nodes at `(0, 0)` + random jitter | sorted grid |
 | Iterations | 1500 | 500 with early stopping |
 | Output | unitless layout coordinates | top-left pixel positions |
 | Node size | not used by the force kernel | used for scaling and spacing |
 | Disconnected components | handled by the surrounding pipeline | packed into a grid |
 | Overlap handling | separate, richer `OverlapRemoval` pass | simple separation pass |
-| Crossings | measured by pynsource's graph metrics | local `reduce_crossings` refinement |
+| Crossings | measured by [pynsource](https://github.com/abulka/pynsource)'s graph metrics | local `reduce_crossings` refinement |
 | Determinism | random jitter, no seed | seeded and repeatable |
 | Cancellation | `gui.kill_layout` polled during layout | `on_step` callback returning `False` |
 | Tests | pure layout tests need no wx import | importing `wxdiagram.layout*` imports the wx package |
 
-Because of these differences, swapping pynsource's engine for this one is a
+Because of these differences, swapping [pynsource](https://github.com/abulka/pynsource)'s engine for this one is a
 user-visible layout change, not a refactor.  It also has consequences for
 deep-layout candidate generation, overlap metrics and pure tests.  The
 decision record and the checks required before any future swap live in
 `pynsource/Admin/LAYOUT-WXDIAGRAM-CONSIDERATIONS.md`.
 
 If you are writing a generic diagram application, use `SpringLayout` as
-documented above.  If you need pynsource's exact historic layout behaviour,
-use pynsource's own engine; it is intentionally application-specific.
+documented above.  If you need [pynsource](https://github.com/abulka/pynsource)'s exact historic layout behaviour,
+use [pynsource](https://github.com/abulka/pynsource)'s own engine; it is intentionally application-specific.

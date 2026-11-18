@@ -410,7 +410,7 @@ Crossing quality can be measured and refined independently:
 See also [Layout and routing](layout-routing.md) for the full options, custom
 engine and custom-router examples, and the
 [appendix](layout-routing.md#appendix-pynsource-heritage-and-variations) on the
-pynsource heritage.
+[pynsource](https://github.com/abulka/pynsource) heritage.
 
 ## Persistence
 

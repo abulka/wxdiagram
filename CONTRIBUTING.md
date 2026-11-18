@@ -38,6 +38,8 @@ On a headless Linux machine, run the tests under `xvfb-run -a`.
 - Do not add drawing-time globals that require `initialize()`; it is optional
   and resources are created lazily.
 - Use `CamelCase` for public API methods; keep internal helpers snake_case.
+- If you change a demo's layout or controls, regenerate its screenshot with
+  `uv run python bin/make-demo-screenshots` and commit the PNG.
 
 ## Release process
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.7 — 2026-11-18
+
+### Documentation
+
+- Added screenshots for the shape editor and layout playground, so all three
+  demos are illustrated in the docs and README. The layout screenshot shows
+  the graph after the spring layout has run.
+- Rewrote the migration guide around compatibility with `wx.lib.ogl`: the
+  pynsource dual-import history, the seven real port seams, a "where the calls
+  are the same" section, and call-equivalence tables for the ones that changed.
+- Linked pynsource references to its GitHub repository.
+- Added `bin/make-demo-screenshots` to regenerate the demo screenshots.
+
 ## 0.2.6 — 2026-11-18
 
 ### Fixed

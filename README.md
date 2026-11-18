@@ -26,7 +26,8 @@ OGLlike attribution.
   [images, composites and export](https://abulka.github.io/wxdiagram/tutorials/images-composites-export/)
 - [Cookbook](https://abulka.github.io/wxdiagram/cookbook/)
 - [API reference](https://abulka.github.io/wxdiagram/api/)
-- [Migration from wx.lib.ogl](https://abulka.github.io/wxdiagram/migration-from-wx-lib-ogl/)
+- [Migration from wx.lib.ogl](https://abulka.github.io/wxdiagram/migration-from-wx-lib-ogl/) —
+  most calls are unchanged; the guide lists the equivalents and the real traps
 
 ## Features
 
@@ -127,6 +128,25 @@ uv run python -m wxdiagram.layoutdemo
 The same entry points are wrapped by `./bin/run`, `./bin/run-shapes` and
 `./bin/run-layout`.
 
+### Screenshots
+
+The kitchen-sink diagram is the screenshot at the top of this README.
+
+![wxdiagram shape editor demo](https://raw.githubusercontent.com/abulka/wxdiagram/main/docs/shapesdemo.png)
+
+*Shape editor: properties panel, shape tools, connection dots, grouping and
+themes.*
+
+![wxdiagram layout demo after running the spring layout](https://raw.githubusercontent.com/abulka/wxdiagram/main/docs/layoutdemo.png)
+
+*Layout playground after `Run spring layout`.*
+
+Regenerate the window screenshots with:
+
+```bash
+uv run python bin/make-demo-screenshots
+```
+
 The kitchen-sink demo is a tour of UML-style class boxes, a composite, a
 basic-shape gallery, bitmaps, captions, a polyline and an arrowed line. The
 File/Edit/Add/Arrange/View menus expose JSON save/load, undo/redo, duplicate,
@@ -169,8 +189,9 @@ comparison with `wx.lib.ogl`.
 
 ## Status
 
-Beta (`0.2.6`). The public API is still settling, so pin a version if you
-depend on it. pynsource is the main downstream consumer.
+Beta (`0.2.7`). The public API is still settling, so pin a version if you
+depend on it. [pynsource](https://github.com/abulka/pynsource) is the main
+downstream consumer.
 
 ## License
 

@@ -10,8 +10,8 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ Spline/arrow/constraint accessors
 - ✅ README, migration guide, docs skeleton
 - ✅ Publish 0.1.0 (PyPI, 2026-11-16)
-- ✅ Publish 0.2.1 with the pynsource integration hooks
-- 🚧 Migrate pynsource and its CI
+- ✅ Publish 0.2.1 with the [pynsource](https://github.com/abulka/pynsource) integration hooks
+- 🚧 Migrate [pynsource](https://github.com/abulka/pynsource) and its CI
 
 ## 0.2 — interaction and pynsource integration
 
@@ -27,14 +27,14 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ overridable `getContentBounds()` for zoom-to-fit
 - ✅ `getContentOrigin()` so content at negative coordinates stays scrollable
 - ✅ `autoVirtualSize` / `zoomInputEnabled` opt-outs for apps that own scrolling
-- ✅ pynsource delegates its viewport (zoom, pinch, pan, virtual size) to this library
+- ✅ [pynsource](https://github.com/abulka/pynsource) delegates its viewport (zoom, pinch, pan, virtual size) to this library
 
 ## 0.3 — edges
 
 - ✅ hybrid curved connectors with obstacle avoidance (straight → curved → orthogonal, `route_edge`)
 - ✅ orthogonal fallback; ✅ lane spreading for parallel edges; side selection still to do
 - ✅ edge hit-testing and labels (middle/start/end)
-- ✅ per-edge style switching (`SetRouteMode`, demo/pynsource right-click with ticks); `auto` = straight-or-curved, no orth
+- ✅ per-edge style switching (`SetRouteMode`, demo/[pynsource](https://github.com/abulka/pynsource) right-click with ticks); `auto` = straight-or-curved, no orth
 - markers on curves, label collision avoidance
 
 ## 0.4 — layout
@@ -43,7 +43,7 @@ See `PLAN.md` in the repository for the full, maintained plan.
 - ✅ simple spring layout (`SpringLayout`, deterministic seed)
 - ✅ experimental router injection (`RouteRequest`/`RouteResult`/`BaseRouter`, per-edge + canvas default, `route_many` batch hook) — UI deliberately not exposed
 - ✅ route mode persistence; experimental router-name persistence (backwards compatible)
-- ✅ `wxdiagram/layoutdemo.py` playground + `bin/run-layout` (independent of pynsource)
+- ✅ `wxdiagram/layoutdemo.py` playground + `bin/run-layout` (independent of [pynsource](https://github.com/abulka/pynsource))
 - ✅ crossing metrics + deterministic post-layout refinement (`reduce_crossings`)
 - ✅ `Add random boxes` re-lays out so new nodes participate in the graph
 - layered layout (next)

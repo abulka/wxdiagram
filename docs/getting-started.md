@@ -88,5 +88,26 @@ All three are also available through the helper scripts:
 ./bin/run-layout
 ```
 
+### What the demos look like
+
+![kitchen-sink demo](demo.png)
+
+*Kitchen sink: UML-style boxes, composites, shapes, bitmaps, captions and edge
+styles.*
+
+![shape editor demo](shapesdemo.png)
+
+*Shape editor: properties panel, shape tools, connection dots and themes.*
+
+![layout playground after running the spring layout](layoutdemo.png)
+
+*Layout playground after `Run spring layout`.*
+
+The two window screenshots are regenerated with:
+
+```bash
+uv run python bin/make-demo-screenshots
+```
+
 The [layout tutorial](tutorials/layout-and-routing.md) walks through applying a
 layout and routing edges in your own app.

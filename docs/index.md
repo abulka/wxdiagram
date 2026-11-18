@@ -11,8 +11,6 @@ It began life as `ogl2`, an internal canvas for
 is the standalone library. See `NOTICE.md` for the `wx.lib.ogl` and OGLlike
 attribution.
 
-![wxdiagram demo](demo.png)
-
 ## Features
 
 - **Canvas with real zoom/pan** — `ZoomIn`, `ZoomOut`, `ZoomTo`, `ZoomReset`,
@@ -35,6 +33,8 @@ attribution.
 
 ## Demos
 
+Three runnable demos ship with the package:
+
 ```bash
 uv run python -m wxdiagram.demo        # kitchen sink
 uv run python -m wxdiagram.shapesdemo  # Shape Studio-style editor
@@ -44,6 +44,28 @@ uv run python -m wxdiagram.layoutdemo  # spring layout + routing playground
 The helper scripts `./bin/run`, `./bin/run-shapes` and `./bin/run-layout` run
 the same three demos. See [Getting started](getting-started.md#run-the-demos)
 for what each one covers.
+
+### Kitchen sink
+
+![wxdiagram kitchen-sink demo](demo.png)
+
+UML-style class boxes, composites, the shape gallery, bitmaps, captions,
+edge styles and arrows, with File/Edit/Add/Arrange/View menus.
+This image is a canvas export; the other two are window captures.
+
+### Shape editor
+
+![wxdiagram shape editor demo](shapesdemo.png)
+
+Add and edit rectangles, circles, ellipses, triangles and free lines, with a
+properties panel, connection dots, grouping, grid/snap and light/dark themes.
+
+### Layout playground
+
+![wxdiagram layout demo after running the spring layout](layoutdemo.png)
+
+Build a small graph, run the spring layout, randomise sizes and switch edge
+routing modes. The screenshot shows the graph after `Run spring layout`.
 
 ## Scope
 
