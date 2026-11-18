@@ -462,6 +462,12 @@ def test_connection_targets_show_four_round_drop_dots(wx_app):
     target_dots = [n for n in canvas.nodes if isinstance(n, InputHandleNode) and n.item is b]
     assert {n.side for n in target_dots} == {"left", "right", "top", "bottom"}
     assert len(target_dots) == 4
+
+    canvas.deselect()
+    canvas.showOutputs()
+    output_dots = [n for n in canvas.nodes if isinstance(n, ConnectionHandleNode) and n.item is b]
+    assert {n.side for n in output_dots} == {"left", "right", "top", "bottom"}
+    assert len(output_dots) == 4
     frame.Destroy()
 
 

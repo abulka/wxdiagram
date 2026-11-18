@@ -2,6 +2,10 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
+## 0.2.6 — 2026-11-18
+
+- Backwards connection drags also show all four round drop dots.
+
 ## 0.2.5 — 2026-11-18
 
 - Connection drags show all four round drop dots on target shapes.

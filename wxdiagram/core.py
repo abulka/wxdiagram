@@ -3551,12 +3551,24 @@ class ShapeCanvas(ScrolledWindow):
 
     def showOutputs(self, item=None):
         if item:
-            self.nodes.extend([ONode(item, n, self) for n in range(item.output)])
+            self._add_output_handles(item)
         elif item is None:
             for i in self.diagram.shapes:
                 if isinstance(i, Connectable):
-                    self.nodes.extend([ONode(i, n, self) for n in range(i.output)])
+                    self._add_output_handles(i)
         self.verify_nodes_have_canvas()
+
+    def _add_output_handles(self, item):
+        """Show all four round output dots for a connectable target shape."""
+        try:
+            points = item.connection_points()
+        except Exception:  # noqa: BLE001 - custom shapes may have no geometry
+            points = {}
+        if points:
+            self.nodes.extend(ConnectionHandleNode(item, side, self) for side in points)
+        else:
+            # Legacy fallback for shapes without connection_points().
+            self.nodes.extend(ONode(item, n, self) for n in range(item.output))
 
     def showInputs(self, item=None):
         if isinstance(item, Block):

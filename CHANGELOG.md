@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.6 — 2026-11-18
+
+### Fixed
+
+- Backwards connection drags (starting from an input) now show all four round
+  output drop dots on targets, matching the forward-drag behaviour.
+
 ## 0.2.5 — 2026-11-18
 
 ### Fixed
