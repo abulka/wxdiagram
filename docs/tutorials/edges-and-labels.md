@@ -49,6 +49,21 @@ Frame()
 app.MainLoop()
 ```
 
+## Connecting interactively
+
+Drag from a round side dot on one shape to another shape; the target shows
+four round drop dots while you drag.  `ShapeCanvas.join_shapes()` receives an
+`edge_type` based on the modifier held at release:
+
+| Modifier | `edge_type` |
+|---|---|
+| none | `association` |
+| `Shift` | `generalisation` |
+| `Alt` / `Option` | `composition` |
+
+The base canvas treats these as plain attached lines; applications such as
+pynsource override `join_shapes()` to draw the matching UML relationship.
+
 ## Routing modes
 
 | Mode | Use it for |
