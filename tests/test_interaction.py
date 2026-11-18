@@ -6,7 +6,7 @@ import pytest
 
 import wxdiagram
 from wxdiagram.composite import CompositeShape
-from wxdiagram.core import INode, ONode, ResizeableNode
+from wxdiagram.core import ConnectionHandleNode, ONode, ResizeableNode
 
 
 def _make_canvas(wx_app, size=(800, 600)):
@@ -316,27 +316,273 @@ def test_drag_from_output_port_creates_an_attached_line(wx_app):
     frame.Destroy()
 
 
+def test_drag_from_dot_to_any_shape_body_creates_an_edge(wx_app):
+    """Releasing over a shape body (not an exact port) completes the edge."""
+    from wxdiagram.shapesdemo import DemoTriangle
+
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    b = wxdiagram.ConnectableEllipseShape()
+    b.x, b.y = [450, 570], [250, 350]
+    tri = DemoTriangle([(700, 220), (820, 380), (580, 380)])
+    for shape in (a, b, tri):
+        shape.SetCanvas(canvas)
+        canvas.InsertShape(shape, 0)
+
+    # Start at a's right-hand dot and release in the middle of the ellipse.
+    start = a.getPort("output", 0)
+    _hover(canvas, start)
+    assert any(isinstance(n, ConnectionHandleNode) for n in canvas.nodes)
+    _drag(canvas, start, (b.GetX(), b.GetY()))
+
+    lines = _attached_lines(canvas)
+    assert len(lines) == 1
+    assert lines[0]._from is a
+    assert lines[0]._to is b
+
+    # Same again, this time dropping on a triangle's body.
+    canvas.deselect()
+    _hover(canvas, start)
+    _drag(canvas, start, (tri.GetX(), tri.GetY()))
+    assert len(_attached_lines(canvas)) == 2
+    frame.Destroy()
+
+
+def test_connection_dots_follow_a_moved_shape(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    canvas.InsertShape(a, 0)
+    canvas.select(a)
+    dots = [n for n in canvas.nodes if isinstance(n, ConnectionHandleNode)]
+    before = {n.side: n._port_position() for n in dots}
+    a.move(100, 40)
+    after = {n.side: n._port_position() for n in dots}
+    assert after["left"] == (before["left"][0] + 100, before["left"][1] + 40)
+    assert after["top"] == (before["top"][0] + 100, before["top"][1] + 40)
+    frame.Destroy()
+
+
+def test_connection_drag_survives_zero_length_shapes(wx_app):
+    """A degenerate line must not break hit-testing during a connection drag."""
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    b = wxdiagram.ConnectableEllipseShape()
+    b.x, b.y = [450, 570], [250, 350]
+    zero = wxdiagram.LinesShape([(700, 600), (700, 600)])
+    canvas.InsertShape(a, 0)
+    canvas.InsertShape(b, 0)
+    canvas.InsertShape(zero, 0)
+
+    start = a.getPort("output", 0)
+    _hover(canvas, start)
+    _drag(canvas, start, (b.GetX(), b.GetY()))
+
+    lines = _attached_lines(canvas)
+    assert len(lines) == 1
+    assert lines[0]._from is a
+    assert lines[0]._to is b
+    assert not any(isinstance(s, wxdiagram.ConnectionShape) for s in canvas.diagram.shapes)
+    frame.Destroy()
+
+
+def test_connection_dot_is_found_just_outside_the_edge(wx_app):
+    """Fractional zoom means an integer click can land just outside a shape."""
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    canvas.InsertShape(a, 0)
+
+    node = canvas._connection_dot_at_point((50, 100.4))
+    assert isinstance(node, ConnectionHandleNode)
+    assert node.item is a
+    assert node.side == "left"
+    frame.Destroy()
+
+
+def test_second_connection_from_the_same_shape_works(wx_app):
+    from wxdiagram.shapesdemo import DemoTriangle
+
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    b = wxdiagram.ConnectableEllipseShape()
+    b.x, b.y = [450, 570], [250, 350]
+    c = DemoTriangle([(650, 500), (760, 650), (540, 650)])
+    for shape in (a, b, c):
+        canvas.InsertShape(shape, 0)
+
+    _hover(canvas, a.getPort("output", 0))
+    _drag(canvas, a.getPort("output", 0), (b.GetX(), b.GetY()))
+    assert len(_attached_lines(canvas)) == 1
+
+    # Select something else, then start a second connection from the same shape.
+    canvas.deselect()
+    canvas.select(b)
+    _hover(canvas, a.getPort("output", 1))
+    _drag(canvas, a.getPort("output", 1), (c.GetX(), c.GetY()))
+    assert len(_attached_lines(canvas)) == 2
+    assert not any(isinstance(s, wxdiagram.ConnectionShape) for s in canvas.diagram.shapes)
+    frame.Destroy()
+
+
+def test_connection_started_from_a_top_dot_uses_that_dot(wx_app):
+    from wxdiagram.core import ConnectionShape
+
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    canvas.InsertShape(a, 0)
+    top = a.connection_points()["top"]
+    node = canvas._connection_dot_at_point(top)
+    assert node is not None and node.side == "top"
+
+    node.move(30, 20)
+    conn = next(s for s in canvas.diagram.shapes if isinstance(s, ConnectionShape))
+    assert conn.start_point == top
+    conn.draw(wx.MemoryDC(wx.Bitmap(10, 10)))
+    assert (conn.x[0], conn.y[0]) == top
+    frame.Destroy()
+
+
+def test_legacy_inode_drop_preserves_edge_type(wx_app):
+    """Pynsource still uses square INode drop ports to choose Shift/Alt edges."""
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    b = wxdiagram.Block()
+    b.x, b.y = [450, 550], [250, 350]
+    canvas.InsertShape(a, 0)
+    canvas.InsertShape(b, 0)
+
+    calls = []
+    original = canvas.join_shapes
+
+    def recording(from_shape, to_shape, edge_type="association"):
+        calls.append(edge_type)
+        return original(from_shape, to_shape, edge_type)
+
+    canvas.join_shapes = recording
+    start = a.getPort("output", 0)
+    end = b.getPort("input", 0)
+
+    def evt(wx_type, diagram_xy, down=False, shift=False):
+        client = canvas.diagram_point_to_client_coords(*diagram_xy)
+        e = wx.MouseEvent(wx_type)
+        e.SetPosition(wx.Point(int(client[0]), int(client[1])))
+        e.SetX(int(client[0]))
+        e.SetY(int(client[1]))
+        e.SetEventObject(canvas)
+        if down:
+            e.SetLeftDown(True)
+        if shift:
+            e.SetShiftDown(True)
+        return e
+
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_MOTION, start))
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_LEFT_DOWN, start))
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_MOTION, end, down=True))
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_LEFT_UP, end, shift=True))
+    wx.Yield()
+
+    assert calls == ["generalisation"]
+    assert not any(isinstance(s, wxdiagram.ConnectionShape) for s in canvas.diagram.shapes)
+    frame.Destroy()
+
+
+def test_body_drop_preserves_shift_edge_type(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    canvas.showDropPorts = False
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    b = wxdiagram.Block()
+    b.x, b.y = [450, 550], [250, 350]
+    canvas.InsertShape(a, 0)
+    canvas.InsertShape(b, 0)
+
+    calls = []
+    original = canvas.join_shapes
+
+    def recording(from_shape, to_shape, edge_type="association"):
+        calls.append(edge_type)
+        return original(from_shape, to_shape, edge_type)
+
+    canvas.join_shapes = recording
+    start = a.getPort("output", 0)
+    end = (b.GetX(), b.GetY())
+
+    def evt(wx_type, diagram_xy, down=False, shift=False):
+        client = canvas.diagram_point_to_client_coords(*diagram_xy)
+        e = wx.MouseEvent(wx_type)
+        e.SetPosition(wx.Point(int(client[0]), int(client[1])))
+        e.SetX(int(client[0]))
+        e.SetY(int(client[1]))
+        e.SetEventObject(canvas)
+        if down:
+            e.SetLeftDown(True)
+        if shift:
+            e.SetShiftDown(True)
+        return e
+
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_MOTION, start))
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_LEFT_DOWN, start))
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_MOTION, end, down=True))
+    canvas.GetEventHandler().ProcessEvent(evt(wx.wxEVT_LEFT_UP, end, shift=True))
+    wx.Yield()
+
+    assert calls == ["generalisation"]
+    assert not any(isinstance(s, wxdiagram.ConnectionShape) for s in canvas.diagram.shapes)
+    frame.Destroy()
+
+
+def test_connection_drag_released_on_empty_space_removes_the_temp_line(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    a = wxdiagram.Block()
+    a.x, a.y = [50, 150], [50, 150]
+    canvas.InsertShape(a, 0)
+
+    start = a.getPort("output", 0)
+    _hover(canvas, start)
+    _drag(canvas, start, (700, 500))
+
+    assert not any(isinstance(s, wxdiagram.ConnectionShape) for s in canvas.diagram.shapes)
+    assert not _attached_lines(canvas)
+    frame.Destroy()
+
+
 def test_ports_appear_only_as_drag_targets(wx_app):
     frame, canvas = _make_canvas(wx_app)
     a = wxdiagram.Block()
     a.x, a.y = [50, 150], [50, 150]
     canvas.InsertShape(a, 0)
 
-    # selecting a shape shows resize handles, never ports
+    # A selected connectable shape shows four corner handles and four side
+    # connection dots.  The two sets never occupy the same position.
     canvas.select(a)
-    assert canvas.nodes
-    assert all(isinstance(n, ResizeableNode) for n in canvas.nodes)
+    handles = [n for n in canvas.nodes if isinstance(n, ResizeableNode)]
+    ports = [n for n in canvas.nodes if isinstance(n, ConnectionHandleNode)]
+    assert len(handles) == 4
+    assert len(ports) == 4
+    handle_points = {n._handle_xy() for n in handles}
+    port_points = {n._port_position() for n in ports}
+    assert handle_points.isdisjoint(port_points)
+
+    # Selected dots stay visible while the pointer moves elsewhere.
+    _hover(canvas, (700, 500))
+    assert len([n for n in canvas.nodes if isinstance(n, ConnectionHandleNode)]) == 4
     canvas.deselect()
 
-    # hovering shows the ports so a connection can be started ...
+    # Hovering an unselected shape shows its dots ...
     _hover(canvas, (100, 100))
-    ports = [n for n in canvas.nodes if isinstance(n, (INode, ONode))]
-    assert len(ports) == 2
+    ports = [n for n in canvas.nodes if isinstance(n, ConnectionHandleNode)]
+    assert len(ports) == 4
     assert all(getattr(n, "_is_hover_port", False) for n in ports)
 
-    # ... and moving away clears them again
+    # ... and moving away clears them again.
     _hover(canvas, (700, 500))
-    assert not any(isinstance(n, (INode, ONode)) for n in canvas.nodes)
+    assert not any(isinstance(n, ConnectionHandleNode) for n in canvas.nodes)
     frame.Destroy()
 
 

@@ -90,6 +90,7 @@ from .basic import initialize, ShapeRegion, ShapeTextLine, get_normal_font
 from .core import (
     Attributable,
     Block,
+    CircleShape,
     Connectable,
     ConnectionShape,
     Diagram,
@@ -116,6 +117,7 @@ from .composite import (
     Constraint,
     ConstraintType,
     CompositeShape,
+    GroupShape,
     CONSTRAINT_ABOVE,
     CONSTRAINT_ALIGNED_BOTTOM,
     CONSTRAINT_ALIGNED_LEFT,
@@ -213,6 +215,7 @@ __all__ = [
     "get_normal_font",
     "Attributable",
     "Block",
+    "CircleShape",
     "Connectable",
     "ConnectionShape",
     "EllipseShape",
@@ -241,5 +244,6 @@ __all__ = [
     "Constraint",
     "ConstraintType",
     "CompositeShape",
+    "GroupShape",
     "persistence",
 ]

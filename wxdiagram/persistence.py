@@ -44,7 +44,7 @@ def _register_default_classes():
     if _registered_defaults:
         return
     from . import core, divided, lines, polygon
-    from .composite import CompositeShape
+    from .composite import CompositeShape, GroupShape
     from .bmpshape import BitmapShape
 
     classes = [
@@ -54,6 +54,7 @@ def _register_default_classes():
         core.LinesShape,
         core.EllipseShape,
         core.ConnectableEllipseShape,
+        core.CircleShape,
         core.TextShape,
         core.Block,
         core.ConnectionShape,
@@ -62,6 +63,7 @@ def _register_default_classes():
         polygon.PolygonShape,
         BitmapShape,
         CompositeShape,
+        GroupShape,
     ]
     for cls in classes:
         _registry[cls.__name__] = cls
@@ -212,6 +214,7 @@ def shape_to_dict(shape, id_map: Dict[int, int]) -> Dict[str, Any]:
         "type": type(shape).__name__,
         "x": list(shape.x),
         "y": list(shape.y),
+        "name": getattr(shape, "name", ""),
         "pen": _pen_to_dict(getattr(shape, "_pen", None)),
         "brush": _brush_to_dict(getattr(shape, "_brush", None)),
         "font": _font_to_dict(getattr(shape, "_font", None)),
@@ -296,6 +299,8 @@ def dict_to_shape(data, id_to_shape: Dict[int, Any]) -> Any:
     shape._persist_id = data["id"]
     if hasattr(shape, "SetId"):
         shape.SetId(data["id"])
+    if hasattr(shape, "name"):
+        shape.name = data.get("name", "")
 
     if data.get("pen") is not None:
         shape._pen = _dict_to_pen(data["pen"])

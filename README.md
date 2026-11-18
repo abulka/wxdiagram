@@ -36,9 +36,9 @@ OGLlike attribution.
   the diagram so panning cannot wander into empty space.
 - **Selection and editing**: marquee select (plain drag on empty canvas),
   Shift/Ctrl add, Esc clear, arrow-key nudge, duplicate, z-order, undo/redo,
-  eight resize handles (corners + edges; corners proportional by default,
-  Shift = free aspect, Alt = from centre), hover ports, and drag
-  port-to-shape to connect.
+  corner resize handles (proportional by default, Shift = free aspect,
+  Alt = from centre), and drag from a side dot onto another shape to connect.
+  Non-connectable shapes also get edge handles.
 - **Grid and guides**: optional background grid, snap-to-grid and magnetic
   alignment guides to other shapes' edges and centres.
 - **Connectors**: attached lines whose endpoints are clipped to the shapes'
@@ -115,6 +115,20 @@ The demo is a kitchen-sink tour: UML-style class boxes, a composite, a
 basic-shape gallery, bitmaps, captions, a polyline and an arrowed line. The
 File/Edit/Add/Arrange/View menus expose JSON save/load, undo/redo, duplicate,
 delete, z-order, image import and zoom.
+
+A second, Shape Studio-style editor focuses on making pictures rather than
+showing off the API:
+
+```bash
+uv run python -m wxdiagram.shapesdemo
+```
+
+Add rectangles, circles, ellipses, triangles and free lines; edit name,
+position, size, colours and border width in the resizable, wrapping properties
+panel on the right; connect shapes by dragging a round side dot onto another
+shape; group/ungroup, duplicate and reorder. File/Edit/Add/Arrange/View/Help
+menus and right-click menus match the main demo, and View > Theme switches
+between System, Light and Dark.
 
 Small runnable scripts live in `examples/`:
 

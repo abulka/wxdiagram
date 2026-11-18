@@ -67,3 +67,10 @@ canvas.SetDiagram(loaded)
 ```bash
 uv run python -m wxdiagram.demo
 ```
+
+For a Shape Studio-style editor with a properties panel (add/resize/group
+shapes, edit colours and geometry, connect shapes with edges), run:
+
+```bash
+uv run python -m wxdiagram.shapesdemo
+```

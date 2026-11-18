@@ -550,10 +550,37 @@ class CompositeShape(RectangleShape, Selectable, Resizeable):
             self._constraints.append(constraint)
 
 
+class GroupShape(CompositeShape):
+    """A composite that draws only its children (no opaque frame).
+
+    The frame still owns the resize handles: dragging a handle scales the
+    children with it, exactly like :class:`CompositeShape`.  Attached lines
+    are never group children; they stay top-level so edges keep following
+    their endpoint shapes.
+    """
+
+    def __init__(self):
+        CompositeShape.__init__(self)
+
+    def draw(self, dc):
+        for child in self._compositeChildren:
+            child.draw(dc)
+
+    def HitTest(self, x, y):
+        for child in self._compositeChildren:
+            try:
+                if child.HitTest(x, y):
+                    return True
+            except Exception:  # noqa: BLE001 - a child must not break hit-testing
+                continue
+        return False
+
+
 __all__ = [
     "ConstraintType",
     "Constraint",
     "CompositeShape",
+    "GroupShape",
     "CONSTRAINT_CENTRED_VERTICALLY",
     "CONSTRAINT_CENTRED_HORIZONTALLY",
     "CONSTRAINT_CENTRED_BOTH",

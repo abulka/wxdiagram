@@ -1,5 +1,93 @@
 # Changelog
 
+## Unreleased
+
+Shape-editor primitives plus a second demo proving them.
+
+### Added
+
+- Style and naming API on `Shape`: `GetName` / `SetName`, `GetFillColour` /
+  `SetFillColour`, `GetPenColour` / `SetPenColour`, `GetPenWidth` /
+  `SetPenWidth`. They work over both the modern `_pen` / `_brush` objects and
+  the legacy `pen` / `fill` lists, and round-trip through JSON persistence.
+- `CircleShape`: a connectable ellipse that stays circular while resizing
+  (proportional handles only, four corner handles).
+- `EllipseShape` now hit-tests a true ellipse and clips attached edges with
+  `GetPerimeterPoint`.
+- Connectable shapes now show **four corner resize handles plus four round side
+  connection dots**.  Dots are clipped to the real perimeter (triangles use
+  their sloping edges) and stay visible for the selected shape.  Dragging a dot
+  and releasing anywhere over another connectable shape body creates an
+  attached edge; `Connectable.connection_points()` exposes the dots and
+  `showDropPorts` keeps the legacy square drop ports available.
+- `AddLine` / `RemoveLine` moved from `RectangleShape` to `Shape`, so ellipses,
+  polygons and groups can be the source of an attached edge (fixes
+  `AttributeError: ... has no attribute 'AddLine'` when connecting from an
+  ellipse or triangle).
+- `duplicate_selected()` places the copies on top of the z-order (previously
+  they were inserted at the bottom).
+- `PolygonShape` has a real bounding box (`GetBoundingBoxMin`), a bbox-centred
+  `GetX` / `GetY`, a `GetPerimeterPoint` so attached edges meet its edges, and
+  a `move_handle` that scales all vertices from the bounding box.  Its resize
+  handles are now placed at bbox corners/edges, matching the indices the
+  scaling code uses (previously they sat on vertices and moved the wrong
+  geometry).
+- `GroupShape` (in `wxdiagram.composite`): a composite that draws only its
+  children, plus `ShapeCanvas.group_selected()` / `ungroup_selected()`.
+  Attached lines stay top-level so edges keep following their endpoints.
+- `ShapeCanvas.onSelectionChanged`: optional callback fired by `select()` /
+  `deselect()`, for inspectors that live outside the canvas.
+- Canvas chrome colours for theming: `handleFillColour`,
+  `handleOutlineColour`, `portFillColour`, `portOutlineColour`,
+  `marqueePenColour`, `connectionPenColour`, and `edgePenColour` /
+  `edgePenWidth` for the default pen of new `join_shapes()` edges.
+- While dragging a connection, the shape under the pointer shows its connection
+  dots as drop targets.  The temporary line is theme-aware, so it stays visible
+  against a dark canvas.
+- Snapshot undo/redo now covers style, names, line control points, composite
+  membership and edge endpoints — so recolour and group/ungroup are undoable.
+- `wxdiagram.shapesdemo`: a Shape Studio-style editor
+  (`uv run python -m wxdiagram.shapesdemo`) with a resizable properties panel
+  (name, position, size, fill/border colours, border width, edge routing and
+  arrowheads), grouping, File/Edit/Add/Arrange/View/Help menus and context
+  menus.  The panel uses wrapping text, a responsive 2-column Add Shape grid and
+  owner-drawn flat buttons that stay readable at narrow widths.  The splitter
+  has a wide visible grip (macOS's native sash is only 1 px) and the inspector
+  body is shaded separately from its header.  View > Theme switches between
+  System, Light and Dark, including the canvas, grid, handles, connection dots,
+  temporary connection line and default edge pen.
+- Tests: `tests/test_shapes_primitives.py` (colour API, ellipse/polygon
+  geometry, groups, style/group undo, selection callback, persistence) and
+  `tests/test_shapesdemo.py` (frame smoke tests, panel wrapping, theme switch).
+
+### Fixed
+
+- Connecting two shapes no longer fails intermittently at fractional zoom.
+  Connection dots are found by proximity even when an integer mouse coordinate
+  lands a fraction outside the shape edge, and the drop target is resolved
+  directly from connectable shapes rather than from whatever the temporary
+  connection line happens to be under the pointer.
+- The temporary connection line now starts at the side dot you grabbed
+  (top/left/bottom as well as right), instead of always using the legacy right
+  output port.
+- Connection ports no longer disappear while dragging toward a target; the
+  target's dots stay visible while the pointer is over the shape or near one
+  of its dots.
+- Releasing a connection over empty canvas (or the source shape) now removes
+  the temporary line instead of leaving it floating.
+- Moving an ellipse, polygon or any non-rectangle shape now re-routes its
+  attached edges. `Shape.OnMoveLinks` is the shared implementation; previously
+  only `RectangleShape` refreshed attached lines, so moving a target ellipse or
+  triangle left the edge behind.
+- `LineShapeBase.HitTest` and `LinesShape.HitTest` no longer divide by zero on
+  zero-length or duplicate-point segments. Shape hit-tests are also guarded so
+  a malformed shape cannot abort a connection drag.
+- Deleting a shape now removes its attached edges (and cleans their endpoint
+  references) instead of leaving floating edges behind; undo restores both the
+  shapes and their edge attachments.
+- Hit-testing during a drag cannot be derailed by an exception from an
+  unrelated shape.
+
 ## 0.2.1 — 2026-11-17
 
 The pynsource integration and interaction release.  This is the first upload

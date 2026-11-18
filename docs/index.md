@@ -18,10 +18,10 @@ attribution.
 - **Canvas with real zoom/pan** — `ZoomIn`, `ZoomOut`, `ZoomTo`, `ZoomReset`,
   `ZoomToFit`, `CenterOn`; Ctrl+wheel and macOS pinch zoom anchored at the
   pointer; drag empty canvas to pan; mouse-wheel scrolling.
-- **Selection and handles** — shift-click multi-select, eight resize handles
-  (corners + edges; corners proportional by default, Shift = free aspect,
-  Alt = from centre), hover ports, drag port-to-shape to connect, an optional
-  grid with snap-to-grid, and magnetic alignment guides.
+- **Selection and handles** — shift-click multi-select, corner resize handles
+  (proportional by default, Shift = free aspect, Alt = from centre), round side
+  dots for dragging connections, an optional grid with snap-to-grid, and
+  magnetic alignment guides.  Non-connectable shapes also get edge handles.
 - **Connectors** — attached lines clipped to shape perimeters, arrowheads,
   splines, dashed pens, bend control points, editable edge labels, and per-edge
   routing modes (`straight`, `auto`, `avoid`, `curved`, `orthogonal`).

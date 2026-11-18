@@ -9,8 +9,8 @@ generated from the docstrings with mkdocstrings. If you are porting from
 | Area | Types |
 |---|---|
 | Canvas | `ShapeCanvas`, `Diagram` |
-| Basic shapes | `Shape`, `RectangleShape`, `EllipseShape`, `PolygonShape`, `LinesShape` |
-| Interactive shapes | `Block`, `ResizableRectangleShape`, `ConnectableEllipseShape`, `DividedShape`, `CompositeShape`, `SelectableTextShape` |
+| Basic shapes | `Shape`, `RectangleShape`, `EllipseShape`, `CircleShape`, `PolygonShape`, `LinesShape` |
+| Interactive shapes | `Block`, `ResizableRectangleShape`, `ConnectableEllipseShape`, `DividedShape`, `CompositeShape`, `GroupShape`, `SelectableTextShape` |
 | Edges | `LineShape`, `ConnectionShape`, `ArrowHead` |
 | Bitmaps | `BitmapShape`, `ResizableBitmapShape` |
 | Mixins | `Selectable`, `Resizeable`, `Connectable`, `Attributable` |
@@ -53,11 +53,19 @@ repainting. Pass it a `Diagram` with `SetDiagram()`.
         - redo
         - duplicate_selected
         - delete_selected
+        - group_selected
+        - ungroup_selected
         - bring_to_front
         - send_to_back
         - bring_forward
         - send_backward
       show_source: false
+
+Canvas callbacks you can set (plain attributes, not methods):
+
+| Attribute | Purpose |
+|---|---|
+| `onSelectionChanged` | optional `fn(canvas)` fired by `select()` / `deselect()` |
 
 Canvas settings you are likely to tune (class or instance attributes):
 
@@ -73,6 +81,13 @@ Canvas settings you are likely to tune (class or instance attributes):
 | `snapToGrid` | `False` | snap drags to the grid |
 | `alignmentGuides` | `True` | magnetic guides to other shapes |
 | `bufferedPainting` | `False` | use `AutoBufferedPaintDC` |
+| `handleFillColour` / `handleOutlineColour` | dark/white | resize handle chrome |
+| `portFillColour` / `portOutlineColour` | white/grey | connection dot chrome |
+| `marqueePenColour` | blue | marquee selection pen |
+| `gridColour` / `guideColour` | light grey / magenta | grid and alignment guide pens |
+| `connectionPenColour` | blue-grey | temporary line while dragging a connection |
+| `edgePenColour` / `edgePenWidth` | `None` / `2` | default pen for edges created by `join_shapes` |
+| `showDropPorts` | `True` | draw legacy square drop ports while connecting |
 | `WHEEL_SCROLL_PIXELS` | `20` | wheel pixels per notch (Windows/Linux) |
 | `WHEEL_SCROLL_PIXELS_MACOS` | `1.0` | multiplier on wxOSX's precise deltas |
 | `PAN_START_THRESHOLD` | `3` | pixels before a drag becomes a pan |
@@ -91,11 +106,18 @@ The shape list plus grid/snap and save/load helpers.
 ### Shape
 
 Base class: point lists (`x`, `y`), pen/brush, attached lines, canvas
-attachment, copying.
+attachment, copying.  `Shape` also owns `AddLine` / `RemoveLine`, so any shape
+(not just rectangles) can be the source of an attached edge.
 
 ::: wxdiagram.Shape
     options:
       show_source: false
+
+Connection UX: connectable shapes show four corner resize handles and four
+round side dots.  `Connectable.connection_points()` returns the dots clipped to
+the real perimeter (triangles use their sloping edges).  Drag a dot and release
+over another connectable shape body to create an attached edge; `showDropPorts`
+enables the legacy square drop ports.
 
 ### RectangleShape
 
@@ -129,6 +151,15 @@ A labelled, connectable rectangle (the common "box" shape).
     options:
       show_source: false
 
+### CircleShape
+
+A connectable ellipse that stays circular: proportional resize only, with
+four corner handles.
+
+::: wxdiagram.CircleShape
+    options:
+      show_source: false
+
 ### PolygonShape
 
 A closed polygon; hit-testing covers its interior.
@@ -159,6 +190,16 @@ A rectangle that owns child shapes and constraints.  Resizing the frame
 scales the children with it.
 
 ::: wxdiagram.CompositeShape
+    options:
+      show_source: false
+
+### GroupShape
+
+A composite that draws only its children.  Use
+`ShapeCanvas.group_selected()` / `ungroup_selected()`; attached lines stay
+top-level so edges keep following their endpoints.
+
+::: wxdiagram.GroupShape
     options:
       show_source: false
 

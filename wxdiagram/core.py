@@ -294,12 +294,17 @@ class Shape(ShapeEvtHandler):
     GraphicsInSizeToContents = False  # ANDY ADDED - needed by divided text formatting as a flag
     #: include this shape in marquee selection
     marqueeSelectable = True
+    #: when True, resize keeps the aspect ratio even if Shift is held
+    preserve_aspect_ratio = False
+    #: when True, only the four corner handles are shown
+    corner_handles_only = False
 
     def __init__(self, x=[], y=[]):
         self.x = x  # list of x coord
         self.y = y  # list of y coords
         self.pen = ["BLACK", 1]  # pen color and size
         self.fill = ["WHITE"]  # fill color
+        self.name = ""  # user-editable name metadata (inspector, persistence)
 
         # ANDY EXTRAS
         self._lines = []
@@ -311,6 +316,7 @@ class Shape(ShapeEvtHandler):
         self._canvas = None  # canvas - should come from init
         self._id = 0
         self._visible = True
+        self._attachmentMode = ATTACHMENT_MODE_NONE
         self._textMarginX = 5
         self._textMarginY = 5
         # these real objects override the default ogl behaviour of creating a pen/brush each time in the root draw method
@@ -346,6 +352,131 @@ class Shape(ShapeEvtHandler):
         # ogllike only support brushes as a string
         # NEW: Passing a brush object (not just a string) will override the ogllike stuff.
         self._brush = brush
+
+    # -- style + name API (used by the shape-editor demo) ----------------------
+
+    def GetName(self):
+        """Return the user-editable name metadata (may be empty)."""
+        return getattr(self, "name", "")
+
+    def SetName(self, name):
+        """Set the user-editable name metadata."""
+        self.name = name
+
+    @staticmethod
+    def _coerce_colour(colour):
+        """Coerce a colour name, ``#rrggbb[aa]`` string or ``wx.Colour``."""
+        if isinstance(colour, wx.Colour):
+            return colour
+        if isinstance(colour, str) and colour.startswith("#"):
+            hexpart = colour.lstrip("#")
+            try:
+                if len(hexpart) == 8:
+                    return wx.Colour(
+                        int(hexpart[0:2], 16),
+                        int(hexpart[2:4], 16),
+                        int(hexpart[4:6], 16),
+                        int(hexpart[6:8], 16),
+                    )
+                return wx.Colour(
+                    int(hexpart[0:2], 16),
+                    int(hexpart[2:4], 16),
+                    int(hexpart[4:6], 16),
+                )
+            except ValueError:
+                return wx.Colour(0, 0, 0)
+        try:
+            found = wx.TheColourDatabase.Find(colour)
+            if found.IsOk():
+                return found
+        except Exception:  # noqa: BLE001 - fall through to black
+            pass
+        return wx.Colour(0, 0, 0)
+
+    @staticmethod
+    def _colour_to_string(colour):
+        if isinstance(colour, wx.Colour) and colour.IsOk():
+            return "#%02x%02x%02x%02x" % (
+                colour.Red(),
+                colour.Green(),
+                colour.Blue(),
+                colour.Alpha(),
+            )
+        return str(colour)
+
+    def GetFillColour(self):
+        """Return the fill colour as a ``wx.Colour``."""
+        if getattr(self, "_brush", None) is not None:
+            try:
+                return self._brush.GetColour()
+            except Exception:  # noqa: BLE001 - fall through to base fill
+                pass
+        base = (getattr(self, "fill", ["WHITE"])[0:1] or ["WHITE"])[0]
+        return self._coerce_colour(base)
+
+    def SetFillColour(self, colour):
+        """Set the fill colour (name, hex string or ``wx.Colour``)."""
+        wxcolour = self._coerce_colour(colour)
+        self._brush = wx.Brush(wxcolour, wx.BRUSHSTYLE_SOLID)
+        self.fill = [self._colour_to_string(wxcolour)]
+
+    def GetPenColour(self):
+        """Return the outline colour as a ``wx.Colour``."""
+        if getattr(self, "_pen", None) is not None:
+            try:
+                return self._pen.GetColour()
+            except Exception:  # noqa: BLE001 - fall through to base pen
+                pass
+        base = (getattr(self, "pen", ["BLACK", 1])[0:1] or ["BLACK"])[0]
+        return self._coerce_colour(base)
+
+    def SetPenColour(self, colour):
+        """Set the outline colour (name, hex string or ``wx.Colour``)."""
+        wxcolour = self._coerce_colour(colour)
+        width = self.GetPenWidth()
+        style = wx.PENSTYLE_SOLID
+        if getattr(self, "_pen", None) is not None:
+            try:
+                style = self._pen.GetStyle()
+            except Exception:  # noqa: BLE001 - keep solid
+                pass
+        self._pen = wx.Pen(wxcolour, width, style)
+        self.pen = [self._colour_to_string(wxcolour), width]
+
+    def GetPenWidth(self):
+        """Return the outline width in pixels."""
+        if getattr(self, "_pen", None) is not None:
+            try:
+                return self._pen.GetWidth()
+            except Exception:  # noqa: BLE001 - fall through to base pen
+                pass
+        pen = getattr(self, "pen", ["BLACK", 1])
+        try:
+            return int(pen[1])
+        except Exception:  # noqa: BLE001 - malformed legacy pen
+            return 1
+
+    def SetPenWidth(self, width):
+        """Set the outline width in pixels (minimum 1)."""
+        width = max(1, int(width))
+        colour = self.GetPenColour()
+        style = wx.PENSTYLE_SOLID
+        if getattr(self, "_pen", None) is not None:
+            try:
+                style = self._pen.GetStyle()
+            except Exception:  # noqa: BLE001 - keep solid
+                pass
+        self._pen = wx.Pen(colour, width, style)
+        base = (getattr(self, "pen", ["BLACK", 1])[0:1] or ["BLACK"])[0]
+        self.pen = [base, width]
+
+    def SetAttachmentMode(self, mode):
+        """Set the attachment mode (see :meth:`GetAttachmentMode`)."""
+        self._attachmentMode = mode
+
+    def GetAttachmentMode(self):
+        """Return the attachment mode (default ``ATTACHMENT_MODE_NONE``)."""
+        return getattr(self, "_attachmentMode", ATTACHMENT_MODE_NONE)
 
     def move(self, x, y):  # should be renamed move_by() cos its a relative move from current pos
         self.x = list(map((lambda v: v + x), self.x))
@@ -650,9 +781,66 @@ class Shape(ShapeEvtHandler):
         self.OnMoveLinks(dc)  # ANDY
 
     def OnMoveLinks(self, dc):
-        """The move links handler."""
-        # if self._previousHandler:
-        #     self._previousHandler.OnMoveLinks(dc)
+        """Refresh every line attached to this shape.
+
+        This is the base implementation: any shape (rectangle, ellipse,
+        polygon, composite) can carry attached edges, so moving a target shape
+        must re-route them too - not only rectangles.
+        """
+        for line in self._lines:
+            line.OnMoveLink(dc)
+
+    def AddLine(self, line, other, attachFrom=0, attachTo=0, positionFrom=-1, positionTo=-1):
+        """Add a line between this shape and the given other shape.
+
+        Lines are stored on both endpoint shapes.  This lives on ``Shape``
+        (rather than only on rectangles) so any connectable shape - ellipses,
+        polygons, groups - can be the source of an attached edge.
+
+        :param `line`: an instance of :class:`wxdiagram.LineShape`
+        :param `other`: the other shape, an instance of :class:`Shape`
+        :param `attachFrom`: the attachment from point
+        :param `attachTo`: the attachment to point
+        :param `positionFrom`: the from position
+        :param `positionTo`: the to position
+        """
+        if positionFrom == -1:
+            if line not in self._lines:
+                self._lines.append(line)
+        else:
+            try:
+                self._lines.remove(line)
+            except ValueError:
+                pass
+            if positionFrom < len(self._lines):
+                self._lines.insert(positionFrom, line)
+            else:
+                self._lines.append(line)
+
+        if positionTo == -1:
+            if other not in other._lines:
+                other._lines.append(line)
+        else:
+            try:
+                other._lines.remove(line)
+            except ValueError:
+                pass
+            if positionTo < len(other._lines):
+                other._lines.insert(positionTo, line)
+            else:
+                other._lines.append(line)
+
+        line.SetFrom(self)
+        line.SetTo(other)
+        line.SetAttachments(attachFrom, attachTo)
+
+        dc = wx.MemoryDC()
+        self.MoveLinks(dc)
+
+    def RemoveLine(self, line):
+        """Remove the given line from the shape's list of attached lines."""
+        if line in self._lines:
+            self._lines.remove(line)
 
     def ResetControlPoints(self):
         """Shape, RectangleShape, CommentShape(RectangleShape) all didn't have this method
@@ -738,30 +926,32 @@ class LineShapeBase(Shape):
         # print("DrawLine", self.x[0], self.y[0], self.x[1], self.y[1])
 
     def HitTest(self, x, y):
-        if x < min(self.x) - 3:
+        if not self.x or not self.y:
             return False
-        if x > max(self.x) + 3:
+        x0, y0 = self.x[0], self.y[0]
+        x1, y1 = self.x[-1], self.y[-1]
+        if x < min(x0, x1) - 7 or x > max(x0, x1) + 7:
             return False
-        if y < min(self.y) - 3:
+        if y < min(y0, y1) - 7 or y > max(y0, y1) + 7:
             return False
-        if y > max(self.y) + 3:
-            return False
-
-        top = (x - self.x[0]) * (self.x[1] - self.x[0]) + (y - self.y[0]) * (self.y[1] - self.y[0])
-        distsqr = pow(self.x[0] - self.x[1], 2) + pow(self.y[0] - self.y[1], 2)
-        u = float(top) / float(distsqr)
-
-        newx = self.x[0] + u * (self.x[1] - self.x[0])
-        newy = self.y[0] + u * (self.y[1] - self.y[0])
-
-        dist = pow(pow(newx - x, 2) + pow(newy - y, 2), 0.5)
-
-        if dist > 7:
-            return False
-        return True
+        dx = x1 - x0
+        dy = y1 - y0
+        length_squared = dx * dx + dy * dy
+        if length_squared <= 1e-12:
+            # A zero-length line (or a freshly created ConnectionShape before
+            # its endpoint is assigned) must not divide by zero.
+            return (x - x0) ** 2 + (y - y0) ** 2 <= 49
+        t = ((x - x0) * dx + (y - y0) * dy) / length_squared
+        t = max(0.0, min(1.0, t))
+        nearest_x = x0 + t * dx
+        nearest_y = y0 + t * dy
+        return (nearest_x - x) ** 2 + (nearest_y - y) ** 2 <= 49
 
 
 class RectangleShape(Shape):
+    #: resize using eight bounding-box handles rather than per-point handles
+    uses_bounding_box_handles = True
+
     def __init__(self, x=20, y=20, x2=90, y2=90):
         # ANDY
         super().__init__([x, x2], [y, y2])
@@ -979,17 +1169,7 @@ class RectangleShape(Shape):
 
     def MoveLinks(self, dc):
         """Redraw all the lines attached to the shape."""
-        # self.GetEventHandler().OnMoveLinks(dc)
-        self.OnMoveLinks(dc)  # ANDY
-
-    def OnMoveLinks(self, dc):
-        """The move links handler."""
-        # Want to set the ends of all attached links
-        # to point to / from this object
-
-        for line in self._lines:
-            # line.GetEventHandler().OnMoveLink(dc)
-            line.OnMoveLink(dc)  # ANDY
+        self.OnMoveLinks(dc)
 
     def SetCentreResize(self, cr):
         """
@@ -1099,72 +1279,16 @@ class RectangleShape(Shape):
         self._formatted = True
 
     def AddLine(self, line, other, attachFrom=0, attachTo=0, positionFrom=-1, positionTo=-1):
+        """Add a line between this shape and the given other shape.
+
+        Kept as a thin delegate for backwards compatibility; the
+        implementation now lives on :class:`Shape`.
         """
-        Add a line between this shape and the given other shape, at the
-        specified attachment points.
-
-        :param `line`: the line an instance of :class:`~lib.ogl.LineShape`
-        :param `other`: the other shape, an instance of :class:`Shape`
-        :param `attachFrom`: the attachment from point ???
-        :param `attachTo`: the attachment to point ???
-        :param `positionFrom`: the from position
-        :param `positionTo`: the to position
-
-        :note: The position in the list of lines at each end can also be
-         specified, so that the line will be drawn at a particular point on
-         its attachment point.
-
-        """
-        if positionFrom == -1:
-            if line not in self._lines:
-                self._lines.append(line)
-        else:
-            # Don't preserve old ordering if we have new ordering instructions
-            try:
-                self._lines.remove(line)
-            except ValueError:
-                pass
-            if positionFrom < len(self._lines):
-                self._lines.insert(positionFrom, line)
-            else:
-                self._lines.append(line)
-
-        if positionTo == -1:
-            if other not in other._lines:
-                other._lines.append(line)
-        else:
-            # Don't preserve old ordering if we have new ordering instructions
-            try:
-                other._lines.remove(line)
-            except ValueError:
-                pass
-            if positionTo < len(other._lines):
-                other._lines.insert(positionTo, line)
-            else:
-                other._lines.append(line)
-
-        line.SetFrom(self)
-        line.SetTo(other)
-        line.SetAttachments(attachFrom, attachTo)
-
-        dc = wx.MemoryDC()
-        # dc.SelectObject(self.GetCanvas().GetBuffer())
-        # self.GetCanvas().PrepareDC(dc)
-        self.MoveLinks(dc)
+        return Shape.AddLine(self, line, other, attachFrom, attachTo, positionFrom, positionTo)
 
     def RemoveLine(self, line):
-        """
-        Remove the given line from the shape's list of attached lines.
-
-        :param `line`: an instance of :class:`~lib.ogl.LineShape`
-
-        """
-        # if line.GetFrom() == self:
-        #     line.GetTo()._lines.remove(line)
-        # else:
-        #     line.GetFrom()._lines.remove(line)
-        #
-        # self._lines.remove(line)
+        """Remove the given line from the shape's list of attached lines."""
+        return Shape.RemoveLine(self, line)
 
     def SetAttachmentMode(self, mode):
         """
@@ -1326,6 +1450,8 @@ class ShapeCanvas(ScrolledWindow):
         self._undo_pending = None
         self._undo_depth = 0
         self._restoring_state = False
+        #: optional callback fired after the selection changes: ``fn(canvas)``
+        self.onSelectionChanged = None
         # cache + guard for the virtual size calculations
         self._bounds_cache = None
         self._in_resize = False
@@ -1365,6 +1491,19 @@ class ShapeCanvas(ScrolledWindow):
         self._guides = []
         self.gridColour = wx.Colour(228, 228, 228)
         self.guideColour = wx.Colour(200, 60, 200)
+        # Selection chrome colours (applications can theme these).
+        self.handleFillColour = wx.Colour(35, 35, 38)
+        self.handleOutlineColour = wx.Colour(255, 255, 255)
+        self.portFillColour = wx.Colour(255, 255, 255)
+        self.portOutlineColour = wx.Colour(70, 70, 75)
+        self.marqueePenColour = wx.Colour(60, 110, 255)
+        #: pen used for the temporary line while dragging a connection
+        self.connectionPenColour = wx.Colour(60, 90, 170)
+        #: when set, join_shapes() uses this colour and width for new edges
+        self.edgePenColour = None
+        self.edgePenWidth = 2
+        #: show the legacy square drop ports while dragging a connection
+        self.showDropPorts = True
         ####
 
     def _bounds_changed(self):
@@ -1419,13 +1558,54 @@ class ShapeCanvas(ScrolledWindow):
         self._bounds_changed()
 
     def delete_selected(self):
-        """Delete every selected shape as one undoable operation."""
-        shapes = list(self.getSelectedShapes())
+        """Delete every selected shape as one undoable operation.
+
+        Attached edges are deleted with the shapes they connect, and their
+        references are removed from the remaining endpoint.  Otherwise a
+        deleted shape would leave a floating edge behind.
+        """
+        shapes = [s for s in self.getSelectedShapes() if not isinstance(s, Node)]
         if not shapes:
             return
         self.begin_undo()
         try:
+            doomed_lines = []
+            seen = set()
+
+            def collect_lines(shape):
+                for line in list(getattr(shape, "_lines", []) or []):
+                    if line in self.diagram.shapes and id(line) not in seen:
+                        seen.add(id(line))
+                        doomed_lines.append(line)
+                for child in getattr(shape, "_compositeChildren", []) or []:
+                    collect_lines(child)
+
             for shape in shapes:
+                collect_lines(shape)
+                if (
+                    isinstance(shape, LineShapeBase)
+                    and shape in self.diagram.shapes
+                    and id(shape) not in seen
+                ):
+                    seen.add(id(shape))
+                    doomed_lines.append(shape)
+
+            for line in doomed_lines:
+                for endpoint in (getattr(line, "_from", None), getattr(line, "_to", None)):
+                    lines = getattr(endpoint, "_lines", None)
+                    if lines is not None and line in lines:
+                        lines.remove(line)
+
+            removed = set()
+            for line in doomed_lines:
+                try:
+                    self.diagram.DeleteShape(line)
+                    removed.add(id(line))
+                except ValueError:
+                    pass
+            for shape in shapes:
+                if id(shape) in removed:
+                    continue
                 try:
                     self.diagram.DeleteShape(shape)
                 except ValueError:
@@ -1607,6 +1787,10 @@ class ShapeCanvas(ScrolledWindow):
         line = LineShape()
         line.MakeLineControlPoints(2)
         line.SetEnds(fromShape.GetX(), fromShape.GetY(), toShape.GetX(), toShape.GetY())
+        edge_colour = getattr(self, "edgePenColour", None)
+        if edge_colour is not None:
+            line.SetPen(wx.Pen(edge_colour, getattr(self, "edgePenWidth", 2)))
+            line.SetBrush(wx.Brush(edge_colour))
         self.InsertShape(line, 0)
         fromShape.AddLine(line, toShape)
         return line
@@ -1641,9 +1825,7 @@ class ShapeCanvas(ScrolledWindow):
         """
         if self.diagram is None:
             return False
-        shapes = [
-            s for s in self.diagram.shapes if getattr(s, "IsShown", lambda: True)()
-        ]
+        shapes = [s for s in self.diagram.shapes if getattr(s, "IsShown", lambda: True)()]
         xs = [value for shape in shapes for value in shape.x]
         ys = [value for shape in shapes for value in shape.y]
         if xs and ys:
@@ -1679,20 +1861,131 @@ class ShapeCanvas(ScrolledWindow):
 
     # --- Undo / redo -------------------------------------------------------
 
+    @staticmethod
+    def _colour_key(colour):
+        if isinstance(colour, wx.Colour) and colour.IsOk():
+            return (colour.Red(), colour.Green(), colour.Blue(), colour.Alpha())
+        return ("str", str(colour))
+
+    @classmethod
+    def _pen_snapshot_key(cls, shape):
+        pen = getattr(shape, "_pen", None)
+        if pen is not None:
+            try:
+                return (
+                    "pen",
+                    cls._colour_key(pen.GetColour()),
+                    pen.GetWidth(),
+                    pen.GetStyle(),
+                )
+            except Exception:  # noqa: BLE001 - fall through to base pen
+                pass
+        return ("base-pen", tuple(getattr(shape, "pen", [])))
+
+    @classmethod
+    def _brush_snapshot_key(cls, shape):
+        brush = getattr(shape, "_brush", None)
+        if brush is not None:
+            try:
+                return ("brush", cls._colour_key(brush.GetColour()), brush.GetStyle())
+            except Exception:  # noqa: BLE001 - fall through to base fill
+                pass
+        return ("base-brush", tuple(getattr(shape, "fill", [])))
+
+    @classmethod
+    def _shape_state_key(cls, shape):
+        line_ctrl = None
+        if getattr(shape, "_lineControlPoints", None):
+            line_ctrl = tuple((p[0], p[1]) for p in shape._lineControlPoints)
+        children = None
+        if getattr(shape, "_compositeChildren", None) is not None:
+            children = tuple(getattr(shape, "_compositeChildren", []) or [])
+        attached_lines = tuple(getattr(shape, "_lines", []) or [])
+        from_shape = getattr(shape, "_from", None)
+        to_shape = getattr(shape, "_to", None)
+        return (
+            tuple(shape.x),
+            tuple(shape.y),
+            shape.GetId(),
+            shape.IsShown(),
+            getattr(shape, "name", ""),
+            getattr(shape, "label", None)
+            if isinstance(getattr(shape, "label", None), str)
+            else None,
+            cls._pen_snapshot_key(shape),
+            cls._brush_snapshot_key(shape),
+            line_ctrl,
+            getattr(shape, "_isSpline", None),
+            attached_lines,
+            children,
+            from_shape,
+            to_shape,
+            getattr(shape, "_attachmentFrom", 0),
+            getattr(shape, "_attachmentTo", 0),
+        )
+
+    @classmethod
+    def _collect_snapshot_shapes(cls, shapes):
+        seen = set()
+        ordered = []
+
+        def visit(shape):
+            if id(shape) in seen:
+                return
+            seen.add(id(shape))
+            ordered.append(shape)
+            for child in getattr(shape, "_compositeChildren", []) or []:
+                visit(child)
+
+        for shape in shapes or []:
+            visit(shape)
+        return ordered
+
     def snapshot_state(self):
         """Return a comparable snapshot of the diagram state.
 
         Applications with their own model can override this and restore_state()
         with an opaque snapshot object; the undo stack only compares snapshots
-        for equality.
+        for equality.  The default snapshot covers geometry, visibility, style,
+        names, line control points, composite membership and edge endpoints,
+        so colour edits and group/ungroup round-trip through undo/redo.
         """
         if self.diagram is None:
             return None
         shapes = tuple(self.diagram.shapes)
-        geometry = tuple(
-            (s, tuple(s.x), tuple(s.y), s.GetId(), s.IsShown()) for s in shapes
-        )
+        all_shapes = self._collect_snapshot_shapes(shapes)
+        geometry = tuple((s, self._shape_state_key(s)) for s in all_shapes)
         return {"shapes": shapes, "geometry": geometry}
+
+    @staticmethod
+    def _restore_pen_from_key(shape, key):
+        if not isinstance(key, tuple) or not key:
+            return
+        if key[0] == "pen":
+            _, colour_key, width, style = key
+            if isinstance(colour_key, tuple) and len(colour_key) == 4:
+                colour = wx.Colour(*colour_key)
+            else:
+                colour = wx.Colour(0, 0, 0)
+            shape._pen = wx.Pen(colour, width, style)
+        elif key[0] == "base-pen":
+            shape._pen = None
+            shape.pen = list(key[1])
+
+    @staticmethod
+    def _restore_brush_from_key(shape, key):
+        if not isinstance(key, tuple) or not key:
+            return
+        if key[0] == "brush":
+            _, colour_key, style = key
+            if isinstance(colour_key, tuple) and len(colour_key) == 4:
+                colour = wx.Colour(*colour_key)
+            else:
+                colour = wx.Colour(255, 255, 255)
+            shape._brush = wx.Brush(colour, style)
+        elif key[0] == "base-brush":
+            shape._brush = None
+            shape.fill = list(key[1])
 
     def restore_state(self, snapshot):
         """Restore a snapshot produced by snapshot_state()."""
@@ -1702,11 +1995,47 @@ class ShapeCanvas(ScrolledWindow):
         try:
             self.deselect()
             self.diagram.shapes[:] = list(snapshot["shapes"])
-            for shape, x, y, shape_id, shown in snapshot["geometry"]:
+            for shape, state in snapshot["geometry"]:
+                (
+                    x,
+                    y,
+                    shape_id,
+                    shown,
+                    name,
+                    label,
+                    pen_key,
+                    brush_key,
+                    line_ctrl,
+                    is_spline,
+                    attached_lines,
+                    children,
+                    from_shape,
+                    to_shape,
+                    attach_from,
+                    attach_to,
+                ) = state
                 shape.x = list(x)
                 shape.y = list(y)
                 shape.SetId(shape_id)
                 shape.Show(shown)
+                shape.name = name
+                if label is not None and hasattr(shape, "label"):
+                    shape.label = label
+                self._restore_pen_from_key(shape, pen_key)
+                self._restore_brush_from_key(shape, brush_key)
+                if line_ctrl is not None and getattr(shape, "_lineControlPoints", None) is not None:
+                    shape._lineControlPoints = [wx.RealPoint(px, py) for px, py in line_ctrl]
+                if is_spline is not None and hasattr(shape, "_isSpline"):
+                    shape._isSpline = is_spline
+                if hasattr(shape, "_lines"):
+                    shape._lines[:] = list(attached_lines)
+                if children is not None and hasattr(shape, "_compositeChildren"):
+                    shape._compositeChildren[:] = list(children)
+                if hasattr(shape, "_from") or hasattr(shape, "_to"):
+                    shape._from = from_shape
+                    shape._to = to_shape
+                    shape._attachmentFrom = attach_from
+                    shape._attachmentTo = attach_to
                 self._attach_canvas(shape)
                 if getattr(shape, "is_bitmap", False):
                     shape.SetSize(
@@ -1875,11 +2204,9 @@ class ShapeCanvas(ScrolledWindow):
             and abs(rect[3] - rect[1]) < self.MARQUEE_MIN_SIZE
         ):
             return
-        dc.SetPen(wx.Pen(wx.BLUE, 1, wx.PENSTYLE_SHORT_DASH))
+        dc.SetPen(wx.Pen(self.marqueePenColour, 1, wx.PENSTYLE_SHORT_DASH))
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        dc.DrawRectangle(
-            int(rect[0]), int(rect[1]), int(rect[2] - rect[0]), int(rect[3] - rect[1])
-        )
+        dc.DrawRectangle(int(rect[0]), int(rect[1]), int(rect[2] - rect[0]), int(rect[3] - rect[1]))
 
     # --- Grid / snapping / alignment guides --------------------------------
 
@@ -2030,6 +2357,14 @@ class ShapeCanvas(ScrolledWindow):
                 clone.move(*offset)
                 self.AddShape(clone)
                 clones.append(clone)
+            # AddShape inserts at the bottom of the z-order.  A duplicate is
+            # expected to appear on top of the original, so move the clones to
+            # the end of the shape list in their original order.
+            if self.diagram is not None:
+                for clone in clones:
+                    if clone in self.diagram.shapes:
+                        self.diagram.shapes.remove(clone)
+                        self.diagram.shapes.append(clone)
             self.deselect()
             for clone in clones:
                 self.select(clone)
@@ -2090,6 +2425,80 @@ class ShapeCanvas(ScrolledWindow):
                 if index > 0:
                     self.diagram.ChangeShapeOrder(shape, index - 1)
             self.Refresh()
+        finally:
+            self.commit_undo()
+
+    def group_selected(self):
+        """Group the selected top-level shapes into a :class:`GroupShape`.
+
+        Attached lines are left top-level so edges keep following their
+        endpoints.  Returns the new group, or None when fewer than two
+        groupable shapes are selected.
+        """
+        from .composite import GroupShape
+
+        selected = [
+            s
+            for s in self.getSelectedShapes()
+            if not isinstance(s, Node) and s in (self.diagram.shapes if self.diagram else [])
+        ]
+        groupable = [s for s in selected if not isinstance(s, LineShapeBase)]
+        lines = [s for s in selected if isinstance(s, LineShapeBase)]
+        if len(groupable) < 2:
+            return None
+        self.begin_undo()
+        try:
+            group = GroupShape()
+            group.name = "Group"
+            for shape in groupable:
+                self.diagram.DeleteShape(shape)
+                group.AddChild(shape)
+            group.CalculateSize()
+            # A little breathing room between the children and the group frame.
+            if group.x and group.y and len(group.x) == 2:
+                group.x = [group.x[0] - 10, group.x[1] + 10]
+                group.y = [group.y[0] - 10, group.y[1] + 10]
+            self.AddShape(group)
+            # Keep attached lines on top of the new group frame.
+            for line in lines:
+                if line in self.diagram.shapes:
+                    self.diagram.ChangeShapeOrder(line, len(self.diagram.shapes) - 1)
+            self.deselect()
+            self.select(group)
+            self.update_virtual_size()
+            self.Refresh()
+            return group
+        finally:
+            self.commit_undo()
+
+    def ungroup_selected(self):
+        """Ungroup selected groups, returning released children to the canvas."""
+        groups = [
+            s
+            for s in self.getSelectedShapes()
+            if not isinstance(s, Node)
+            and hasattr(s, "_compositeChildren")
+            and s in (self.diagram.shapes if self.diagram else [])
+        ]
+        if not groups:
+            return []
+        self.begin_undo()
+        try:
+            released = []
+            for group in groups:
+                children = list(getattr(group, "_compositeChildren", []) or [])
+                for child in children:
+                    group.RemoveChild(child)
+                    child.SetParent(None)
+                    self.AddShape(child)
+                    released.append(child)
+                self.diagram.DeleteShape(group)
+            self.deselect()
+            for child in released:
+                self.select(child)
+            self.update_virtual_size()
+            self.Refresh()
+            return released
         finally:
             self.commit_undo()
 
@@ -2167,6 +2576,17 @@ class ShapeCanvas(ScrolledWindow):
         If no shape, deselect all.
         """
         shape = self.getCurrentShape(event)
+        if not isinstance(shape, Node):
+            point = self.currentPoint
+            dot = None
+            if isinstance(shape, Connectable):
+                dot = self._connection_dot_at(point, shape)
+            elif shape is None:
+                # Fractional zoom can put an integer click just outside the
+                # shape edge; look for a nearby dot only on empty canvas.
+                dot = self._connection_dot_at_point(point)
+            if dot is not None:
+                shape = dot
         # Remember where the drag started so tiny mouse tremors do not move or
         # resize anything (classic OGL waits DRAG_TOLERANCE pixels).
         self._drag_start_client = event.GetPosition() if hasattr(event, "GetPosition") else None
@@ -2258,6 +2678,50 @@ class ShapeCanvas(ScrolledWindow):
             # would move the mapping out from under this mouse-up.
             shape = self.getCurrentShape(event)
             self._bounds_changed()
+
+            # Finishing a connection: release over any connectable shape body,
+            # not just an exact drop port.  The temporary line is removed and a
+            # real attached edge is created instead.
+            connection = None
+            selected = [s for s in self.getSelectedShapes() if isinstance(s, ConnectionShape)]
+            if (
+                resize_node is None
+                and len(selected) == 1
+                and selected[0].input is not None
+                and selected[0].output is None
+                # Preserve the legacy INode drop path (and its Shift/Alt edge
+                # type) for applications such as pynsource that still use the
+                # square input ports.
+                and not isinstance(shape, INode)
+            ):
+                connection = selected[0]
+            if connection is not None:
+                source = connection.input[0] if connection.input else None
+                target = self._connection_target_at(self.currentPoint, connection)
+                if target is None and isinstance(shape, Node):
+                    candidate = shape.item
+                    if isinstance(candidate, Connectable) and candidate is not source:
+                        target = candidate
+                try:
+                    if connection in self.diagram.shapes:
+                        self.diagram.DeleteShape(connection)
+                    self.deselect()
+                    if target is not None and source is not None:
+                        edge_type = "association"
+                        if getattr(event, "ShiftDown", lambda: False)():
+                            edge_type = "generalisation"
+                        elif getattr(event, "AltDown", lambda: False)():
+                            edge_type = "composition"
+                        line = self.join_shapes(source, target, edge_type)
+                        if line is not None:
+                            self.select(line)
+                    self._drag_end()
+                    self.update_virtual_size()
+                finally:
+                    self.commit_undo()
+                    self.Refresh()
+                return
+
             self._dump_drag_info("Master OnLeftUp", shape)
             if resize_node is not None:
                 # A resize finishes even when the pointer has left the handle:
@@ -2378,6 +2842,11 @@ class ShapeCanvas(ScrolledWindow):
             self._record_drag(shape)
 
         self.currentPoint = point
+        if self._connection_in_progress() is not None:
+            try:
+                self._update_hover_ports(event)
+            except Exception:  # noqa: BLE001 - never abort a drag over a bad hit-test
+                pass
         self.Refresh()
 
     def _record_drag(self, shape):
@@ -2428,13 +2897,27 @@ class ShapeCanvas(ScrolledWindow):
         return self.shapeFromPoint(point)
 
     def shapeFromPoint(self, point):
+        if self.diagram is None:
+            return None
+
+        def hit(item):
+            try:
+                if item._canvas is None:
+                    item.SetCanvas(self)
+                return bool(item.HitTest(point[0], point[1]))
+            except Exception:  # noqa: BLE001 - a broken shape must not stop input
+                return False
+
+        # Connection dots win over resize handles: they share the side region
+        # conceptually, and a dot that is visible must be clickable.
         for item in self.nodes:
-            if item._canvas is None:
-                item.SetCanvas(self)
-            if item.HitTest(point[0], point[1]):
+            if getattr(item, "_is_hover_port", False) and hit(item):
+                return item
+        for item in self.nodes:
+            if not getattr(item, "_is_hover_port", False) and hit(item):
                 return item
         for item in reversed(self.diagram.shapes):
-            if item.HitTest(point[0], point[1]):
+            if hit(item):
                 return item
         return None
 
@@ -2782,6 +3265,18 @@ class ShapeCanvas(ScrolledWindow):
             self.nodes = [n for n in self.nodes if n.item != item]
             self.selectedShapes = [n for n in self.selectedShapes if n != item]
             item.OnDeselect(None)
+        self._sync_selection_ports()
+        self._notify_selection_changed()
+
+    def _notify_selection_changed(self):
+        """Fire :attr:`onSelectionChanged` without breaking mouse handling."""
+        callback = getattr(self, "onSelectionChanged", None)
+        if callback is None:
+            return
+        try:
+            callback(self)
+        except Exception:  # noqa: BLE001 - selection listeners must not break input
+            pass
 
     def select(self, item=None):
         if item is None:
@@ -2795,17 +3290,22 @@ class ShapeCanvas(ScrolledWindow):
         if item not in self.selectedShapes:
             self.selectedShapes.append(item)
             item.OnSelect(None)
-            # Note: no port nodes here.  Ports are drag handles, not selection
-            # adornments: they appear when hovering a shape (see
-            # _update_hover_ports) and as drop targets while a connection is
-            # being dragged (see showInputs/showOutputs).  A finished edge is
-            # an attached line routed via shape perimeters, never via ports.
             if isinstance(item, Resizeable):
-                # Rectangles get eight handles (corners + edges); other
-                # resizable shapes get one handle per x/y point.
-                count = len(RECT_HANDLES) if _is_two_point_rect(item) else len(item.x)
+                # Connectable shapes resize from their four corners; their
+                # side midpoints are reserved for connection dots (see
+                # _sync_selection_ports).  Other bounding-box shapes get eight
+                # handles, and line-like shapes get one per control point.
+                if _uses_bounding_box_handles(item):
+                    corner_only = getattr(item, "corner_handles_only", False) or isinstance(
+                        item, Connectable
+                    )
+                    count = 4 if corner_only else len(RECT_HANDLES)
+                else:
+                    count = len(item.x)
                 self.nodes.extend([ResizeableNode(item, n, self) for n in range(count)])
                 self.verify_nodes_have_canvas()
+        self._sync_selection_ports()
+        self._notify_selection_changed()
 
     def showOutputs(self, item=None):
         if item:
@@ -2826,44 +3326,159 @@ class ShapeCanvas(ScrolledWindow):
         self.verify_nodes_have_canvas()
 
     def _show_hover_ports(self, shape):
-        """Show the port nodes of one hovered shape (or clear them).
-
-        Ports exist only as drag targets: hovering a connectable shape shows
-        its ports so a connection can be started from them.
-        """
+        """Show round connection dots for one connectable shape (or clear)."""
         self._clear_hover_ports()
-        if shape is None:
+        if not isinstance(shape, Connectable):
             return
-        for n in range(shape.input):
-            node = INode(shape, n, self)
+        try:
+            points = shape.connection_points()
+        except Exception:  # noqa: BLE001 - a custom shape without geometry
+            points = {}
+        for side in points.keys():
+            node = ConnectionHandleNode(shape, side, self)
             node._is_hover_port = True
-            node.moveto(*shape.getPort("input", n))
-            self.nodes.append(node)
-        for n in range(shape.output):
-            node = ONode(shape, n, self)
-            node._is_hover_port = True
-            node.moveto(*shape.getPort("output", n))
             self.nodes.append(node)
         self.verify_nodes_have_canvas()
         self._hover_shape = shape
 
+    def _sync_selection_ports(self):
+        """Keep connection dots visible for a single selected connectable shape."""
+        selected = self.selectedShapes
+        if len(selected) == 1 and isinstance(selected[0], Connectable):
+            if self._hover_shape is not selected[0] or not any(
+                getattr(n, "_is_hover_port", False) for n in self.nodes
+            ):
+                self._show_hover_ports(selected[0])
+        else:
+            self._clear_hover_ports()
+
     def _clear_hover_ports(self):
-        """Remove any hover-shown port nodes."""
+        """Remove any hover/selection connection dots."""
         self.nodes = [n for n in self.nodes if not getattr(n, "_is_hover_port", False)]
         self._hover_shape = None
 
+    def _connection_dot_at(self, point, shape):
+        """Return a connection-dot node if ``point`` is near one of ``shape``'s dots."""
+        if not isinstance(shape, Connectable):
+            return None
+        if not shape.x or not shape.y:
+            return None
+        radius = ConnectionHandleNode.HIT_RADIUS
+        if point[0] < min(shape.x) - radius or point[0] > max(shape.x) + radius:
+            return None
+        if point[1] < min(shape.y) - radius or point[1] > max(shape.y) + radius:
+            return None
+        try:
+            dots = shape.connection_points()
+        except Exception:  # noqa: BLE001 - custom shape without geometry
+            return None
+        for side, (dot_x, dot_y) in dots.items():
+            if (dot_x - point[0]) ** 2 + (dot_y - point[1]) ** 2 <= radius * radius:
+                return ConnectionHandleNode(shape, side, self)
+        return None
+
+    def _connection_dot_at_point(self, point):
+        """Find a nearby connection dot without relying on an exact shape hit.
+
+        Mouse coordinates are integers and the canvas transform is fractional,
+        so clicking exactly on a shape's edge can land a fraction of a pixel
+        outside it.  This fallback makes side dots reliable at the boundary.
+        """
+        if self.diagram is None:
+            return None
+        for shape in reversed(self.diagram.shapes):
+            if not getattr(shape, "IsShown", lambda: True)():
+                continue
+            dot = self._connection_dot_at(point, shape)
+            if dot is not None:
+                return dot
+        return None
+
+    def _connection_in_progress(self):
+        """Return the temporary connection line being dragged, if any."""
+        for shape in self.selectedShapes:
+            if (
+                isinstance(shape, ConnectionShape)
+                and shape.input is not None
+                and shape.output is None
+            ):
+                return shape
+        return None
+
+    def _connection_target_at(self, point, connection=None):
+        """Return the connectable shape under ``point`` for a connection drop.
+
+        Unlike :meth:`shapeFromPoint`, this deliberately ignores the temporary
+        connection line, the source shape and all non-connectable shapes.  It
+        also accepts points on the four side dots so a drop on a triangle's
+        perimeter is reliable.
+        """
+        if self.diagram is None:
+            return None
+        source = connection.input[0] if connection is not None and connection.input else None
+        for shape in reversed(self.diagram.shapes):
+            if shape is connection or shape is source:
+                continue
+            if not isinstance(shape, Connectable):
+                continue
+            if not getattr(shape, "IsShown", lambda: True)():
+                continue
+            try:
+                if shape.HitTest(point[0], point[1]):
+                    return shape
+            except Exception:  # noqa: BLE001 - a broken shape must not stop a drop
+                continue
+            try:
+                dots = shape.connection_points().values()
+            except Exception:  # noqa: BLE001 - custom shape without geometry
+                continue
+            for dot_x, dot_y in dots:
+                if (dot_x - point[0]) ** 2 + (dot_y - point[1]) ** 2 <= 14 * 14:
+                    return shape
+        return None
+
     def _update_hover_ports(self, event):
-        """Show ports on the shape under the mouse, if it is connectable."""
+        """Show connection dots for the hovered shape.
+
+        When the pointer is over empty canvas (or a non-connectable shape), a
+        single selected connectable shape keeps its dots visible as a fallback,
+        so they cannot vanish while the user aims at one.  While dragging a
+        connection, only a connectable target is considered, so the temporary
+        line can never steal the hover.
+        """
         if self.diagram is None:
             return
-        point = self.getEventCoordinates(event)
-        hovered = self.shapeFromPoint(point)
-        if isinstance(hovered, Node):
-            hovered = hovered.item
-        if not isinstance(hovered, Connectable):
-            hovered = None
-        if hovered is not self._hover_shape:
-            self._show_hover_ports(hovered)
+        connection = self._connection_in_progress()
+        if connection is not None:
+            if getattr(self, "showDropPorts", True):
+                # Legacy mode: ONode.move() has already created square INode
+                # drop ports (pynsource uses these to choose edge types).
+                # Do not stack hover dots on top of them.
+                target = None
+            else:
+                point = self.getEventCoordinates(event)
+                target = self._connection_target_at(point, connection)
+        else:
+            point = self.getEventCoordinates(event)
+            hit = self.shapeFromPoint(point)
+            if isinstance(hit, Node):
+                target = hit.item
+            elif hit is None:
+                # Fractional zoom can miss a shape edge by a fraction of a
+                # pixel; a nearby dot still identifies the intended shape.
+                dot = self._connection_dot_at_point(point)
+                target = dot.item if dot is not None else None
+            else:
+                target = hit
+            if not isinstance(target, Connectable):
+                selected = [s for s in self.selectedShapes if not isinstance(s, Node)]
+                target = (
+                    selected[0]
+                    if len(selected) == 1 and isinstance(selected[0], Connectable)
+                    else None
+                )
+        if target is not self._hover_shape:
+            self._show_hover_ports(target)
             self.Refresh()
 
     def verify_nodes_have_canvas(self):
@@ -2998,31 +3613,83 @@ class Connectable:
     #         x -= 10
     #     return (x, y)
 
+    def _connect_bounds(self):
+        """Return the shape's bounding box as ``(left, top, right, bottom)``.
+
+        Polygons store their vertices in ``x``/``y``, so ports and centres must
+        use the extent, not the first two values.
+        """
+        if not self.x or not self.y:
+            return 0.0, 0.0, 0.0, 0.0
+        return min(self.x), min(self.y), max(self.x), max(self.y)
+
+    def _perimeter_point(self, target, centre=None):
+        """Clip the centre -> target ray to this shape's real perimeter.
+
+        Targets that are already on or inside the shape (the usual bbox
+        side-midpoints for rectangles and ellipses) are returned unchanged.
+        Only points that fall inside the bounding box but outside the real
+        shape - such as a bbox side-midpoint of a triangle - need clipping.
+        """
+        if centre is None:
+            centre = self.getCentre()
+        hit_test = getattr(self, "HitTest", None)
+        if hit_test is not None:
+            try:
+                if hit_test(target[0], target[1]):
+                    return target
+            except Exception:  # noqa: BLE001 - fall through to clipping
+                pass
+        get_perimeter = getattr(self, "GetPerimeterPoint", None)
+        if get_perimeter is not None:
+            try:
+                point = get_perimeter(centre[0], centre[1], target[0], target[1])
+                if point:
+                    return point
+            except Exception:  # noqa: BLE001 - fall back to the bbox point
+                pass
+        return target
+
+    def connection_points(self):
+        """Return the four side connection points, clipped to the perimeter.
+
+        The keys are ``left``, ``right``, ``top`` and ``bottom``.  Polygons use
+        the intersection with their real edges, so a triangle's dots sit on
+        the sloping sides rather than at the corners of its bounding box.
+        """
+        left, top, right, bottom = self._connect_bounds()
+        cx, cy = self.getCentre()
+        return {
+            "left": self._perimeter_point((left, cy), (cx, cy)),
+            "right": self._perimeter_point((right, cy), (cx, cy)),
+            "top": self._perimeter_point((cx, top), (cx, cy)),
+            "bottom": self._perimeter_point((cx, bottom), (cx, cy)),
+        }
+
     def getPort(self, type, num):
         """Return a port position as ``(x, y)``.
 
         Port 0 (the default) is the centre of the left side for inputs and the
         right side for outputs.  Ports 1 and 2 are the centres of the top and
-        bottom edges, so vertical relationships can be connected to real ports
-        and follow the shape when it moves.
+        bottom edges.  The point is clipped to the shape's real perimeter, so
+        polygons and ellipses get a port that is actually on their outline.
         """
+        left, top, right, bottom = self._connect_bounds()
+        cx, cy = self.getCentre()
         if num == 1:  # top centre
-            return ((self.x[0] + self.x[1]) / 2.0, self.y[0])
-        if num == 2:  # bottom centre
-            return ((self.x[0] + self.x[1]) / 2.0, self.y[1])
-        # centre of left and right sides
-        if type == "input":
-            x = self.x[0]
-        elif type == "output":
-            x = self.x[1]
-        y = self.y[0] + (self.y[1] - self.y[0]) / 2
-        return (x, y)
+            target = (cx, top)
+        elif num == 2:  # bottom centre
+            target = (cx, bottom)
+        elif type == "input":
+            target = (left, cy)
+        else:
+            target = (right, cy)
+        return self._perimeter_point(target, (cx, cy))
 
     def getCentre(self):
-        # calc centre
-        x = self.x[0] + (self.x[1] - self.x[0]) / 2
-        y = self.y[0] + (self.y[1] - self.y[0]) / 2
-        return (x, y)
+        """Return the centre of the shape's bounding box."""
+        left, top, right, bottom = self._connect_bounds()
+        return ((left + right) / 2.0, (top + bottom) / 2.0)
 
 
 class Attributable:
@@ -3069,38 +3736,30 @@ class LinesShape(Shape, Resizeable):
             pass
 
     def HitTest(self, x, y):
-
-        if x < min(self.x) - 3:
+        if not self.x or not self.y or len(self.x) < 2:
             return False
-        if x > max(self.x) + 3:
+        if x < min(self.x) - 7 or x > max(self.x) + 7:
             return False
-        if y < min(self.y) - 3:
+        if y < min(self.y) - 7 or y > max(self.y) + 7:
             return False
-        if y > max(self.y) + 3:
-            return False
-
-        ind = 0
-        try:
-            while 1:
-                x1 = self.x[ind]
-                y1 = self.y[ind]
-                x2 = self.x[ind + 1]
-                y2 = self.y[ind + 1]
-
-                top = (x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)
-                distsqr = pow(x1 - x2, 2) + pow(y1 - y2, 2)
-                u = float(top) / float(distsqr)
-
-                newx = x1 + u * (x2 - x1)
-                newy = y1 + u * (y2 - y1)
-
-                dist = pow(pow(newx - x, 2) + pow(newy - y, 2), 0.5)
-
-                if dist < 7:
+        for index in range(len(self.x) - 1):
+            x1, y1 = self.x[index], self.y[index]
+            x2, y2 = self.x[index + 1], self.y[index + 1]
+            dx = x2 - x1
+            dy = y2 - y1
+            length_squared = dx * dx + dy * dy
+            if length_squared <= 1e-12:
+                # Duplicate points are legal (a zero-length segment must not
+                # divide by zero and break hit-testing for every shape).
+                if (x - x1) ** 2 + (y - y1) ** 2 <= 49:
                     return True
-                ind = ind + 1
-        except IndexError:
-            pass
+                continue
+            t = ((x - x1) * dx + (y - y1) * dy) / length_squared
+            t = max(0.0, min(1.0, t))
+            nearest_x = x1 + t * dx
+            nearest_y = y1 + t * dy
+            if (nearest_x - x) ** 2 + (nearest_y - y) ** 2 <= 49:
+                return True
         return False
 
 
@@ -3110,6 +3769,8 @@ class ConnectionShape(LineShapeBase, Resizeable, Selectable):
         Resizeable.__init__(self)
         self.input = None
         self.output = None
+        self.start_point = None  # explicit start (side connection dots)
+        self.end_point = None  # explicit end (backwards drags)
 
     def setInput(self, shape, portnum):
         """
@@ -3142,8 +3803,12 @@ class ConnectionShape(LineShapeBase, Resizeable, Selectable):
             shape, portnum = self.input
             # Always draw from the port.  Using the centre while unselected and
             # the port while selected made a connection visibly jump the moment
-            # it was clicked.
-            point = shape.getPort("output", portnum)
+            # it was clicked.  A side dot supplies an explicit start point.
+            point = (
+                self.start_point
+                if self.start_point is not None
+                else shape.getPort("output", portnum)
+            )
             self.x[0], self.y[0] = point
 
             # Fix any discrepancy re current TO drag position
@@ -3175,7 +3840,9 @@ class ConnectionShape(LineShapeBase, Resizeable, Selectable):
             # self.x[1],self.y[1] = self.output[SHAPE].getPort('input',self.output[PORT])
 
             shape, portnum = self.output
-            point = shape.getPort("input", portnum)
+            point = (
+                self.end_point if self.end_point is not None else shape.getPort("input", portnum)
+            )
             self.x[1], self.y[1] = point
 
             # Fix any discrepancy re current TO drag position
@@ -3409,6 +4076,9 @@ class Block(RectangleShape, Connectable, Resizeable, Selectable, Attributable):
 
 
 class EllipseShape(Shape):
+    #: resize using eight bounding-box handles rather than per-point handles
+    uses_bounding_box_handles = True
+
     def __init__(self, x=20, y=20, x2=90, y2=90):
         Shape.__init__(self, [x, x2], [y, y2])
         self._width = x2 - x
@@ -3419,6 +4089,10 @@ class EllipseShape(Shape):
 
     def GetHeight(self):
         return self.y[1] - self.y[0]
+
+    def GetBoundingBoxMin(self):
+        """Return ``(width, height)`` of the ellipse's bounding box."""
+        return abs(self.x[1] - self.x[0]), abs(self.y[1] - self.y[0])
 
     def draw(self, dc):
         """The draw handler."""
@@ -3450,16 +4124,37 @@ class EllipseShape(Shape):
         dc.DrawEllipse(int(self.x[0]), int(self.y[0]), int(self.GetWidth()), int(self.GetHeight()))
 
     def HitTest(self, x, y):
-        # Crude copy of Rectangle test
-        if x < self.x[0]:
+        # True-ellipse test: normalised distance from the centre <= 1.
+        left, right = (self.x[0], self.x[1]) if self.x[0] <= self.x[1] else (self.x[1], self.x[0])
+        top, bottom = (self.y[0], self.y[1]) if self.y[0] <= self.y[1] else (self.y[1], self.y[0])
+        if x < left or x > right or y < top or y > bottom:
             return False
-        if x > self.x[1]:
+        rx = (right - left) / 2.0
+        ry = (bottom - top) / 2.0
+        if rx <= 0 or ry <= 0:
             return False
-        if y < self.y[0]:
-            return False
-        if y > self.y[1]:
-            return False
-        return True
+        cx = (left + right) / 2.0
+        cy = (top + bottom) / 2.0
+        return ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1.0
+
+    def GetPerimeterPoint(self, x1, y1, x2, y2):
+        """Clip the ``(x2, y2) -> centre`` ray to the ellipse perimeter."""
+        left = min(self.x)
+        right = max(self.x)
+        top = min(self.y)
+        bottom = max(self.y)
+        rx = (right - left) / 2.0
+        ry = (bottom - top) / 2.0
+        cx = (left + right) / 2.0
+        cy = (top + bottom) / 2.0
+        if rx <= 0 or ry <= 0:
+            return cx, cy
+        dx = x2 - cx
+        dy = y2 - cy
+        if dx == 0 and dy == 0:
+            return cx, cy
+        t = 1.0 / ((dx / rx) ** 2 + (dy / ry) ** 2) ** 0.5
+        return cx + dx * t, cy + dy * t
 
 
 class ConnectableEllipseShape(EllipseShape, Connectable, Resizeable, Selectable, Attributable):
@@ -3475,6 +4170,24 @@ class ConnectableEllipseShape(EllipseShape, Connectable, Resizeable, Selectable,
     ################
 
 
+class CircleShape(EllipseShape, Connectable, Resizeable, Selectable, Attributable):
+    """An ellipse that stays circular while resizing.
+
+    Single-handle drags are always proportional and only the four corner
+    handles are shown.  Group resizes may still scale x and y independently;
+    use an ellipse if the result must stay non-square.
+    """
+
+    preserve_aspect_ratio = True
+    corner_handles_only = True
+
+    def __init__(self, x=20, y=20, diameter=70):
+        EllipseShape.__init__(self, x, y, x + diameter, y + diameter)
+        Resizeable.__init__(self)
+        Connectable.__init__(self)
+        Attributable.__init__(self)
+
+
 # Nodes
 class Node(PointShape):
     def __init__(self, item, index, cf):
@@ -3482,12 +4195,19 @@ class Node(PointShape):
         self.item = item  # shape to which node is attached
         self.index = index  # portnum
         self.cf = cf  # shape canvas  # TODO two canvas attrs, consolidate into one
+        self._port_point = None  # optional explicit point (side connection dots)
         # print("Node", self, "created, self._canvas=", self._canvas)
         PointShape.__init__(self)
         # Set _canvas AFTER the PointShape/Shape init, cos they set _canvas to None
         self._canvas = cf  # shape canvas  # TODO two canvas attrs, consolidate into one
         assert self.cf
         assert self._canvas
+
+    def _node_xy(self, type, num):
+        """Return this node's position, honouring an explicit port point."""
+        if getattr(self, "_port_point", None) is not None:
+            return self._port_point
+        return self.item.getPort(type, num)
 
     def showProperties(self):
         self.item.showProperties
@@ -3531,6 +4251,9 @@ class ConnectableNode(Node):
 class INode(ConnectableNode):
     def __init__(self, item, index, cf):
         ConnectableNode.__init__(self, item, index, cf)
+        # Position the hit box immediately: draw() also refreshes it, but a
+        # fast mouse-up can arrive before the first paint.
+        self.moveto(*self.item.getPort("input", self.index))
 
     def leftUp(self, connection_shapes):
         """
@@ -3564,9 +4287,12 @@ class INode(ConnectableNode):
         """
         self.cf.deselect()
         ci = ConnectionShape()
+        colour = getattr(self.cf, "connectionPenColour", None)
+        if colour is not None:
+            ci.SetPen(wx.Pen(colour, 2, wx.PENSTYLE_SHORT_DASH))
         self.cf.diagram.shapes.insert(0, ci)
         ci.setOutput(self.item, self.index)
-        ci.x[0], ci.y[0] = self.item.getPort("input", self.index)
+        ci.x[0], ci.y[0] = self._node_xy("input", self.index)
         self.cf.showOutputs()
         self.cf.select(ci)
 
@@ -3574,7 +4300,7 @@ class INode(ConnectableNode):
         """Draws a white square input connector node on the left edge of a shape"""
         # Each node instance has a property index (portnum) baked into it, as well as the item (shape)
         # Draw yourself on the shape at coords of the portnum on the input side (cos this is an INode)
-        x, y = self.item.getPort("input", self.index)
+        x, y = self._node_xy("input", self.index)
         self.moveto(x, y)
         PointShape.draw(self, dc)
 
@@ -3582,6 +4308,7 @@ class INode(ConnectableNode):
 class ONode(ConnectableNode):
     def __init__(self, item, index, cf):
         ConnectableNode.__init__(self, item, index, cf)
+        self.moveto(*self.item.getPort("output", self.index))
 
     def move(self, x, y):
         """
@@ -3591,34 +4318,87 @@ class ONode(ConnectableNode):
         Note the subsequent multiple move() calls due to the OnMotion() goes to the
         ConnectionShape not to the ONode.
         """
-        # print("ONode initiating a connection from output node", self)
         self.cf.deselect()
         ci = ConnectionShape()
+        colour = getattr(self.cf, "connectionPenColour", None)
+        if colour is not None:
+            ci.SetPen(wx.Pen(colour, 2, wx.PENSTYLE_SHORT_DASH))
         self.cf.diagram.shapes.insert(0, ci)
         ci.setInput(self.item, self.index)
-        ci.x[1], ci.y[1] = self.item.getPort("output", self.index)
-        self.cf.showInputs()
+        if isinstance(self, ConnectionHandleNode):
+            ci.start_point = self._node_xy("output", self.index)
+        ci.x[1], ci.y[1] = self._node_xy("output", self.index)
+        if getattr(self.cf, "showDropPorts", True):
+            self.cf.showInputs()
         self.cf.select(ci)
 
     def leftUp(self, connection_shapes):
         # Not sure the use of this, I don't think the setInput() ever gets executed
-        # print("onode leftup", items)
         if len(connection_shapes) == 1 and isinstance(connection_shapes[0], ConnectionShape):
             connection_shape = connection_shapes[0]
             if connection_shape.input is None:
-                # print("onode leftup, setting input", items)
                 connection_shape.setInput(self.item, self.index)
                 self.recreate_line_properly(connection_shape)
 
     def draw(self, dc):
-        x, y = self.item.getPort("output", self.index)
+        x, y = self._node_xy("output", self.index)
         self.moveto(x, y)
         PointShape.draw(self, dc)
 
 
-def _is_two_point_rect(shape):
-    """True if ``shape`` is rectangle-like with exactly two x/y points."""
-    return isinstance(shape, RectangleShape) and len(shape.x) == 2 and len(shape.y) == 2
+class ConnectionHandleNode(ONode):
+    """A round side dot that starts an attached edge.
+
+    Unlike the legacy square ports, these live on the shape's perimeter and
+    are shown persistently for a selected connectable shape.  The position is
+    recomputed from the shape each time, so the dots follow moves and resizes.
+    """
+
+    RADIUS = 4
+    HIT_RADIUS = 12
+
+    def __init__(self, item, side, cf):
+        ONode.__init__(self, item, 0, cf)
+        self.side = side
+        self.size = self.RADIUS
+        self.moveto(*self._port_position())
+
+    def _port_position(self):
+        points = self.item.connection_points()
+        return points.get(self.side, self.item.getCentre())
+
+    def _node_xy(self, type, num):
+        return self._port_position()
+
+    def draw(self, dc):
+        x, y = self._port_position()
+        self.moveto(x, y)
+        fill = getattr(self.cf, "portFillColour", wx.Colour(255, 255, 255))
+        outline = getattr(self.cf, "portOutlineColour", wx.Colour(70, 70, 70))
+        dc.SetPen(wx.Pen(outline, 1))
+        dc.SetBrush(wx.Brush(fill))
+        dc.DrawCircle(int(x), int(y), self.RADIUS)
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+
+    def HitTest(self, x, y):
+        px, py = self._port_position()
+        return abs(x - px) <= self.HIT_RADIUS and abs(y - py) <= self.HIT_RADIUS
+
+
+def _uses_bounding_box_handles(shape):
+    """True if ``shape`` resizes from its bounding box (rect/ellipse/polygon)."""
+    return bool(getattr(shape, "uses_bounding_box_handles", False))
+
+
+def _bbox_handle_point(shape, xi, yi):
+    """Return the bbox corner/edge point for a ``RECT_HANDLES`` descriptor."""
+    if not shape.x or not shape.y:
+        return None
+    left, right = min(shape.x), max(shape.x)
+    top, bottom = min(shape.y), max(shape.y)
+    x = (left + right) / 2.0 if xi is None else (left if xi == 0 else right)
+    y = (top + bottom) / 2.0 if yi is None else (top if yi == 0 else bottom)
+    return x, y
 
 
 #: Handle layout for a two-point rectangle: ``(x_index, y_index)`` per handle.
@@ -3714,7 +4494,7 @@ class ResizeableNode(Node):
 
     def _handle_descriptor(self, index):
         item = self.item
-        if _is_two_point_rect(item) and 0 <= index < len(RECT_HANDLES):
+        if _uses_bounding_box_handles(item) and 0 <= index < len(RECT_HANDLES):
             return RECT_HANDLES[index]
         return (index, index)
 
@@ -3722,6 +4502,8 @@ class ResizeableNode(Node):
         """Current position of this handle in diagram coordinates."""
         item = self.item
         xi, yi = self.handle
+        if _uses_bounding_box_handles(item):
+            return _bbox_handle_point(item, xi, yi)
         if xi is None:
             if len(item.x) < 2:
                 return None
@@ -3744,6 +4526,10 @@ class ResizeableNode(Node):
         point = self._handle_xy()
         if point is not None:
             self.moveto(*point)
+        # Re-read the canvas chrome colours on every paint so theme changes
+        # apply to handles that are already on screen.
+        self.fill = [getattr(self.cf, "handleFillColour", wx.BLACK)]
+        self.pen = [getattr(self.cf, "handleOutlineColour", wx.BLACK), 1]
         PointShape.draw(self, dc)
 
     def move(self, x, y):
@@ -3770,8 +4556,10 @@ class ResizeableNode(Node):
         # print("ResizeableNode move() self.index", self.index)
         item = self.item
         # Proportional by default: Shift frees the aspect ratio.  OnMotion
-        # records the modifier for us.
+        # records the modifier for us.  Circles opt out and stay proportional.
         free_aspect = bool(getattr(self.cf, "_drag_free_aspect", False))
+        if getattr(item, "preserve_aspect_ratio", False):
+            free_aspect = False
         from_center = bool(getattr(self.cf, "_drag_from_center", False))
         move_handle = getattr(item, "move_handle", None)
         if move_handle is not None:
@@ -3781,7 +4569,7 @@ class ResizeableNode(Node):
                 item.MoveLinks(dc=None)
                 self._sync_to_item()
                 return
-        elif _is_two_point_rect(item):
+        elif _uses_bounding_box_handles(item):
             # Corner drag: keep the opposite corner fixed and never invert the
             # rectangle, which used to trip RectangleShape.sanity() on hit-test.
             resize_rect_from_handle(item, self.index, x, y, free_aspect, from_center)
