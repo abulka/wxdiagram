@@ -109,40 +109,42 @@ canvas.join_shapes(left_block, right_block)
 The edge routes through the box perimeters, so it stays correct from any
 direction and follows the shapes when they move.
 
-## Demo and examples
+## Demos and examples
+
+There are three demos:
 
 ```bash
+# 1. Kitchen sink: the full canvas API.
 uv run python -m wxdiagram.demo
+
+# 2. Shape editor: Shape Studio-style properties panel and tools.
+uv run python -m wxdiagram.shapesdemo
+
+# 3. Layout playground: spring layout, sizes and routing modes.
+uv run python -m wxdiagram.layoutdemo
 ```
 
-The demo is a kitchen-sink tour: UML-style class boxes, a composite, a
+The same entry points are wrapped by `./bin/run`, `./bin/run-shapes` and
+`./bin/run-layout`.
+
+The kitchen-sink demo is a tour of UML-style class boxes, a composite, a
 basic-shape gallery, bitmaps, captions, a polyline and an arrowed line. The
 File/Edit/Add/Arrange/View menus expose JSON save/load, undo/redo, duplicate,
 delete, z-order, image import and zoom.
 
-A second, Shape Studio-style editor focuses on making pictures rather than
-showing off the API:
+The shape editor adds rectangles, circles, ellipses, triangles and free lines;
+edit name, position, size, colours and border width in the resizable, wrapping
+properties panel on the right; connect shapes by dragging a round side dot onto
+another shape; group/ungroup, duplicate and reorder.
+File/Edit/Add/Arrange/View/Help menus and right-click menus match the main
+demo, and View > Theme switches between System, Light and Dark.
 
-```bash
-uv run python -m wxdiagram.shapesdemo
-```
+The layout playground builds a small graph, runs the spring layout, and lets you
+switch route modes, randomise sizes and reset the graph. (Router injection is
+experimental and is not exposed in the playground.)
 
-Add rectangles, circles, ellipses, triangles and free lines; edit name,
-position, size, colours and border width in the resizable, wrapping properties
-panel on the right; connect shapes by dragging a round side dot onto another
-shape; group/ungroup, duplicate and reorder. File/Edit/Add/Arrange/View/Help
-menus and right-click menus match the main demo, and View > Theme switches
-between System, Light and Dark.
-
-For layout and routing, run the playground:
-
-```bash
-./bin/run-layout              # or: uv run python -m wxdiagram.layoutdemo
-```
-
-It builds a small graph, runs the spring layout, and lets you switch route
-modes, randomise sizes and reset the graph. (Router injection is experimental
-and is not exposed in the playground.)
+See the [layout tutorial](docs/tutorials/layout-and-routing.md) for using
+`ApplyLayout` and `RouteEdges` in your own app.
 
 Small runnable scripts live in `examples/`:
 
@@ -167,7 +169,7 @@ comparison with `wx.lib.ogl`.
 
 ## Status
 
-Beta (`0.2.1`). The public API is still settling, so pin a version if you
+Beta (`0.2.2`). The public API is still settling, so pin a version if you
 depend on it. pynsource is the main downstream consumer.
 
 ## License

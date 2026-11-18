@@ -13,10 +13,12 @@ uv sync
 This creates `.venv/` with wxPython and the dev dependencies (pytest, coverage,
 ruff).
 
-## Running the demo and tests
+## Running the demos and tests
 
 ```bash
 uv run python -m wxdiagram.demo
+uv run python -m wxdiagram.shapesdemo
+uv run python -m wxdiagram.layoutdemo
 uv run python -m pytest tests/ -q
 uv run ruff check .
 uv run ruff format --check .

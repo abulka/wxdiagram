@@ -97,3 +97,50 @@ the router needs to see all edges at once (lane occupancy, A*).
 diagram JSON (`routeMode`) and restored without forcing a route; files
 written before this feature load as `straight`. Experimental router names
 are also persisted; unknown names on load fall back to the built-in router.
+
+## Appendix: pynsource heritage and variations
+
+`wxdiagram` began life as the canvas inside
+[pynsource](https://github.com/abulka/pynsource), and the spring layout shares
+that ancestry.  pynsource's `GraphLayoutSpring` was itself ported from
+`Graph::Layouter::Spring` and a JavaScript version.  When the canvas was
+extracted into this library, the layout was reworked as a generic,
+deterministic, node-size-aware engine rather than copied verbatim.  The
+wxdiagram module describes itself as a clean-room port; pynsource remains GPL3
+and wxdiagram is MIT.
+
+The two engines are **deliberately separate**, not an unfinished
+deduplication.  pynsource still ships its original engine because its layout
+is only one stage of a larger application pipeline:
+
+- `CoordinateMapper` maps dimensionless `layoutPosX/layoutPosY` values to
+  world pixels and drives the expand/contract commands.
+- `OverlapRemoval` handles node–node and line–node overlaps with margins.
+- `GraphSnapshotMgr` and `LayoutBlackboard` run deep layout, score several
+  candidates and animate/snapshot the result.
+
+### How the implementations differ
+
+| Aspect | pynsource `GraphLayoutSpring` | wxdiagram `SpringLayout` |
+|---|---|---|
+| Purpose | pynsource application pipeline | generic library engine |
+| Starting positions | all nodes at `(0, 0)` + random jitter | sorted grid |
+| Iterations | 1500 | 500 with early stopping |
+| Output | unitless layout coordinates | top-left pixel positions |
+| Node size | not used by the force kernel | used for scaling and spacing |
+| Disconnected components | handled by the surrounding pipeline | packed into a grid |
+| Overlap handling | separate, richer `OverlapRemoval` pass | simple separation pass |
+| Crossings | measured by pynsource's graph metrics | local `reduce_crossings` refinement |
+| Determinism | random jitter, no seed | seeded and repeatable |
+| Cancellation | `gui.kill_layout` polled during layout | `on_step` callback returning `False` |
+| Tests | pure layout tests need no wx import | importing `wxdiagram.layout*` imports the wx package |
+
+Because of these differences, swapping pynsource's engine for this one is a
+user-visible layout change, not a refactor.  It also has consequences for
+deep-layout candidate generation, overlap metrics and pure tests.  The
+decision record and the checks required before any future swap live in
+`pynsource/Admin/LAYOUT-WXDIAGRAM-CONSIDERATIONS.md`.
+
+If you are writing a generic diagram application, use `SpringLayout` as
+documented above.  If you need pynsource's exact historic layout behaviour,
+use pynsource's own engine; it is intentionally application-specific.

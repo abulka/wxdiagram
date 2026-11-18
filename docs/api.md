@@ -15,7 +15,7 @@ generated from the docstrings with mkdocstrings. If you are porting from
 | Bitmaps | `BitmapShape`, `ResizableBitmapShape` |
 | Mixins | `Selectable`, `Resizeable`, `Connectable`, `Attributable` |
 | Routing | `wxdiagram.routing.route_edge`, `LineShape.SetRouteMode`; experimental router injection: `RouteRequest`, `RouteResult`, `BaseRouter`, `DefaultRouter`, `LineShape.SetRouter`, `ShapeCanvas.RouteEdges` |
-| Layout | `LayoutNode`, `LayoutEdge`, `LayoutResult`, `SpringLayout`, `Diagram.ApplyLayout`, `ShapeCanvas.ApplyLayout` |
+| Layout | `LayoutNode`, `LayoutEdge`, `LayoutResult`, `SpringLayout`, `register_layout`, `Diagram.ApplyLayout`, `ShapeCanvas.ApplyLayout`; metrics: `count_crossings`, `total_edge_length`, `reduce_crossings` |
 | Persistence | `wxdiagram.persistence.save`, `wxdiagram.persistence.load` |
 
 ## Canvas
@@ -335,7 +335,19 @@ attach it per edge (`LineShape.SetRouter`) or canvas-wide
 Layouts are pluggable and pure Python. `Diagram.ApplyLayout` collects
 top-level nodes and attached edges, runs the engine, and moves shapes to the
 resulting top-left positions; `ShapeCanvas.ApplyLayout` additionally re-routes
-edges and refreshes the view.
+edges, updates the scroll extent and refreshes the view.
+
+```python
+result = canvas.ApplyLayout("spring", options={"spacing": 40, "seed": 1})
+result.positions      # {node_id: (left, top)}
+result.metadata       # crossings, edge lengths, refinement moves
+```
+
+`SpringLayout` options: `spacing`, `seed`, `iterations`, `keep_positions`,
+`reduce_crossings` and `crossing_passes`.  A layout engine is any object with a
+`name` and a `layout(nodes, edges, *, options=None, on_step=None)` method;
+register it by name or pass the instance to `ApplyLayout`.  See the
+[layout tutorial](tutorials/layout-and-routing.md) for complete examples.
 
 ::: wxdiagram.SpringLayout
     options:
@@ -353,9 +365,41 @@ edges and refreshes the view.
     options:
       show_source: false
 
+::: wxdiagram.get_layout
+    options:
+      show_source: false
+
+::: wxdiagram.register_layout
+    options:
+      show_source: false
+
+::: wxdiagram.available_layouts
+    options:
+      show_source: false
+
+::: wxdiagram.collect_graph
+    options:
+      show_source: false
+
+::: wxdiagram.layout.nodes_from_diagram
+    options:
+      show_source: false
+
+::: wxdiagram.layout.edges_from_diagram
+    options:
+      show_source: false
+
 Crossing quality can be measured and refined independently:
 
 ::: wxdiagram.count_crossings
+    options:
+      show_source: false
+
+::: wxdiagram.total_edge_length
+    options:
+      show_source: false
+
+::: wxdiagram.segments_cross
     options:
       show_source: false
 
@@ -363,8 +407,10 @@ Crossing quality can be measured and refined independently:
     options:
       show_source: false
 
-See also [Layout and routing](layout-routing.md) for custom-engine and
-custom-router examples.
+See also [Layout and routing](layout-routing.md) for the full options, custom
+engine and custom-router examples, and the
+[appendix](layout-routing.md#appendix-pynsource-heritage-and-variations) on the
+pynsource heritage.
 
 ## Persistence
 

@@ -62,15 +62,31 @@ loaded = wxdiagram.Diagram.Load("diagram.json")
 canvas.SetDiagram(loaded)
 ```
 
-## Run the demo
+## Run the demos
+
+Three runnable demos ship with the package:
 
 ```bash
+# Kitchen-sink tour of the canvas API: UML-style boxes, composites,
+# shape gallery, bitmaps, captions, menus, save/load and zoom.
 uv run python -m wxdiagram.demo
+
+# Shape Studio-style editor with a properties panel, shape tools,
+# grouping and connection dots.
+uv run python -m wxdiagram.shapesdemo
+
+# Small graph playground: run the spring layout, randomise sizes and
+# switch edge routing modes.
+uv run python -m wxdiagram.layoutdemo
 ```
 
-For a Shape Studio-style editor with a properties panel (add/resize/group
-shapes, edit colours and geometry, connect shapes with edges), run:
+All three are also available through the helper scripts:
 
 ```bash
-uv run python -m wxdiagram.shapesdemo
+./bin/run
+./bin/run-shapes
+./bin/run-layout
 ```
+
+The [layout tutorial](tutorials/layout-and-routing.md) walks through applying a
+layout and routing edges in your own app.

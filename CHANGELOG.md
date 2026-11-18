@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 — 2026-11-18
 
 Shape-editor primitives plus a second demo proving them.
 
@@ -60,8 +60,23 @@ Shape-editor primitives plus a second demo proving them.
   geometry, groups, style/group undo, selection callback, persistence) and
   `tests/test_shapesdemo.py` (frame smoke tests, panel wrapping, theme switch).
 
+### Documentation
+
+- New [layout tutorial](docs/tutorials/layout-and-routing.md) covering
+  `ApplyLayout`, `RouteEdges`, engine options, fixed nodes, metrics and
+  headless use.
+- Expanded layout API reference and a layout heritage appendix explaining the
+  pynsource ancestry, the deliberate differences and why the two engines
+  remain separate.
+- README, getting-started and contributing docs now list all three demos:
+  kitchen sink (`wxdiagram.demo`), shape editor (`wxdiagram.shapesdemo`) and
+  layout playground (`wxdiagram.layoutdemo`).
+
 ### Fixed
 
+- Destination drop ports are now drawn as round dots, matching the round
+  connection dots used to start an edge.  `INode` and `ONode` share the same
+  port chrome helper as `ConnectionHandleNode`.
 - Connecting two shapes no longer fails intermittently at fractional zoom.
   Connection dots are found by proximity even when an integer mouse coordinate
   lands a fraction outside the shape edge, and the drop target is resolved

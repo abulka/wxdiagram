@@ -2,6 +2,15 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
+## 0.2.2 — 2026-11-18
+
+- Destination connection ports are round, matching the source dots.
+- New layout tutorial covering `ApplyLayout`, routing, options, fixed nodes and
+  headless use.
+- Expanded layout API reference and a pynsource heritage appendix.
+- README and getting-started list all three demos: kitchen sink, shape editor
+  and layout playground.
+
 ## 0.2.1 — 2026-11-17
 
 - `Shape.MoveTo` for top-left layout coordinates (refreshes attached lines).

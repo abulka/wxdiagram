@@ -33,6 +33,18 @@ attribution.
 - **Keyboard** — Delete, Tab cycle, Ctrl+A, Ctrl+C/V.
 - **Headless-friendly** — shapes and the diagram model work without a window.
 
+## Demos
+
+```bash
+uv run python -m wxdiagram.demo        # kitchen sink
+uv run python -m wxdiagram.shapesdemo  # Shape Studio-style editor
+uv run python -m wxdiagram.layoutdemo  # spring layout + routing playground
+```
+
+The helper scripts `./bin/run`, `./bin/run-shapes` and `./bin/run-layout` run
+the same three demos. See [Getting started](getting-started.md#run-the-demos)
+for what each one covers.
+
 ## Scope
 
 `wxdiagram` is a **canvas library**, not a UML framework or a full layout
