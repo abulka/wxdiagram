@@ -2,6 +2,11 @@
 
 See the repository `CHANGELOG.md` for the authoritative history.
 
+## 0.2.4 — 2026-11-18
+
+- Deleting shapes clears their selection handles; `DeleteAllShapes()` and
+  `PopShape()` also clear canvas selection chrome.
+
 ## 0.2.3 — 2026-11-18
 
 - Group drags no longer move attached edges twice; edges follow their shapes.

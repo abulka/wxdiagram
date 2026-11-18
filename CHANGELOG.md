@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.4 — 2026-11-18
+
+### Fixed
+
+- Deleting shapes now clears that shape's selection and handles from the
+  canvas.  `Diagram.DeleteAllShapes()` (used by pynsource when switching sample
+  diagrams) also clears the whole selection.  Previously the old square resize
+  and port handles stayed painted on the new diagram until the next click.
+- `Diagram.PopShape()` clears the popped shape's selection in the same way.
+
 ## 0.2.3 — 2026-11-18
 
 Interaction bug fixes found while exercising pynsource's sample diagram.

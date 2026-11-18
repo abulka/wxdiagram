@@ -199,12 +199,24 @@ class Diagram:
 
     def DeleteShape(self, shape):
         self.shapes.remove(shape)
+        self._clear_selection_for(shape)
 
     def PopShape(self, index=-1):
-        return self.shapes.pop(index)
+        shape = self.shapes.pop(index)
+        self._clear_selection_for(shape)
+        return shape
 
     def DeleteAllShapes(self):
         del self.shapes[:]
+        canvas = self._diagramCanvas
+        if canvas is not None:
+            canvas.deselect()
+
+    def _clear_selection_for(self, shape):
+        """Drop a removed shape's selection and handles from the canvas."""
+        canvas = self._diagramCanvas
+        if canvas is not None:
+            canvas.deselect(shape)
 
     def ChangeShapeOrder(self, shape, pos=0):
         self.shapes.remove(shape)

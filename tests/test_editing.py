@@ -293,6 +293,45 @@ def test_set_diagram_clears_old_selection_chrome(wx_app):
     frame.Destroy()
 
 
+def test_delete_all_shapes_clears_selection_chrome(wx_app):
+    """Pynsource's sample loader reuses the diagram and calls DeleteAllShapes."""
+    frame, canvas = _make_canvas(wx_app)
+    shape = wxdiagram.Block()
+    shape.x = [100, 200]
+    shape.y = [100, 200]
+    canvas.AddShape(shape)
+    canvas.select(shape)
+    assert canvas.nodes
+
+    canvas.GetDiagram().DeleteAllShapes()
+
+    assert canvas.GetDiagram().GetCount() == 0
+    assert canvas.getSelectedShapes() == []
+    assert canvas.nodes == []
+    assert canvas._hover_shape is None
+    frame.Destroy()
+
+
+def test_deleting_one_selected_shape_clears_only_its_handles(wx_app):
+    frame, canvas = _make_canvas(wx_app)
+    first = wxdiagram.Block()
+    first.x, first.y = [100, 200], [100, 200]
+    second = wxdiagram.Block()
+    second.x, second.y = [300, 400], [100, 200]
+    canvas.AddShape(first)
+    canvas.AddShape(second)
+    canvas.select(first)
+    canvas.select(second)
+    assert any(getattr(node, "item", None) is first for node in canvas.nodes)
+
+    canvas.GetDiagram().DeleteShape(first)
+
+    assert first not in canvas.getSelectedShapes()
+    assert not any(getattr(node, "item", None) is first for node in canvas.nodes)
+    assert second in canvas.getSelectedShapes()
+    frame.Destroy()
+
+
 def test_click_does_not_reorder_when_disabled(wx_app):
     frame, canvas = _make_canvas(wx_app)
     canvas.bringClickedShapeToFront = False
